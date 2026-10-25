@@ -1,0 +1,21 @@
+{
+  "groups": [
+    {
+      "id": "north-shore",
+      "name": "North Shore（试点分组）",
+      "definitionVersion": "draft-2026-10-25",
+      "approved": false,
+      "basis": "业务分组，非现行行政区。按 Auckland Region 内官方 Add1_Suburb 字段匹配下列 suburb 清单；suburb 为空的机构不纳入。清单待负责人批准（PRD D02）。",
+      "region": "Auckland Region",
+      "suburbs": [
+        "Albany", "Bayswater-Auckland", "Bayview", "Beach Haven", "Belmont", "Birkdale", "Birkenhead",
+        "Browns Bay", "Campbells Bay", "Castor Bay", "Chatswood", "Cheltenham", "Devonport", "Forrest Hill",
+        "Glenfield", "Glenfield North", "Greenhithe", "Hauraki", "Hillcrest", "Long Bay", "Mairangi Bay",
+        "Milford", "Murrays Bay", "Narrow Neck", "North Harbour", "North Shore", "Northcote", "Northcote Central",
+        "Northcote Point", "Northcross", "Oteha", "Pinehill", "Rosedale", "Rothesay Bay", "Schnapper Rock",
+        "Stanley Point", "Sunnynook", "Takapuna", "Takapuna North", "Torbay", "Totara Vale", "Unsworth Heights",
+        "Wairau Valley", "Westlake"
+      ]
+    }
+  ]
+}

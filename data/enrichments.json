@@ -1,0 +1,4 @@
+{
+  "_readme": "管理员补充资料（F05）。键为 机构key（如 school:544 / ece:5474）。每个机构是按时间追加的条目数组，同一 field 以最后一条为当前值；publish_status 为 published 才对外显示，draft 不显示，disabled 表示停用。field 允许 website / careers。修改历史即 git 历史。",
+  "entries": {}
+}

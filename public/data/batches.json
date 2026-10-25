@@ -1,0 +1,42 @@
+[
+ {
+  "id": "school-20261025T105718",
+  "sourceType": "school",
+  "sourceLabel": "Schools Directory",
+  "sourceUrl": "https://catalogue.data.govt.nz/dataset/directory-of-educational-institutions/resource/4b292323-9fcc-41f8-814b-3c7b19cf14b3",
+  "sourceAsOf": "2026-10-24T18:45:22Z",
+  "importedAt": "2026-10-25T10:57:18.112Z",
+  "checksum": "4ee9321e4ff18771e4b348bb7e5c2d0d01cad5133b91f8b21e55d6a70103e307",
+  "status": "published",
+  "counts": {
+   "sourceRows": 2578,
+   "valid": 2578,
+   "rejected": 0,
+   "added": 2578,
+   "changed": 0,
+   "missing": 0,
+   "returned": 0
+  },
+  "importer": "local"
+ },
+ {
+  "id": "ece-20261025T105718",
+  "sourceType": "ece",
+  "sourceLabel": "Early Childhood Services (ECEs) Directory",
+  "sourceUrl": "https://catalogue.data.govt.nz/dataset/directory-of-educational-institutions/resource/a9d65b07-8483-4b05-bdfd-d2abe4f38827",
+  "sourceAsOf": "2026-10-24T18:45:30Z",
+  "importedAt": "2026-10-25T10:57:18.112Z",
+  "checksum": "cfa5266e36d73eebce66523a99998f0fdfee0aaf56f40de3aaa1ec02e03789f5",
+  "status": "published",
+  "counts": {
+   "sourceRows": 4377,
+   "valid": 4377,
+   "rejected": 0,
+   "added": 4377,
+   "changed": 0,
+   "missing": 0,
+   "returned": 0
+  },
+  "importer": "local"
+ }
+]

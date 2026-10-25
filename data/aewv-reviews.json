@@ -1,0 +1,4 @@
+{
+  "_readme": "AEWV 匹配人工复核记录。decision 为 confirmed 或 rejected；需 institution、nzbn 或 legal_name、reviewer、evidence、verified_at，rejected 需 reason。复核不会改写原始匹配结果，只叠加结论。",
+  "reviews": []
+}

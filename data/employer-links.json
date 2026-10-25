@@ -1,0 +1,4 @@
+{
+  "_readme": "已确认的 机构 ↔ 法律雇主 关系（F09 高可信前提）。每条需 institution、nzbn(13位)、legal_name、relation（如 board_of_trustees / operator / umbrella_org）、evidence、confirmed_by、verified_at。",
+  "links": []
+}

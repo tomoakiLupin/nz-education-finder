@@ -1,0 +1,9 @@
+node_modules
+dist
+*.local
+.env
+.env.*
+# Never commit private data, raw personal records, credentials or unlicensed JDs (PRD §20)
+private/
+raw/
+public/data/overlays.json
