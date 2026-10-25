@@ -96,3 +96,9 @@ test('AEWV: a rejected review removes the candidate; a confirmed review marks it
   assert.equal(m['school:7'], undefined);
   assert.equal(m['school:8'].candidates[0].reviewStatus, 'verified');
 });
+
+test('AEWV: a place name shared by a kindergarten and a college is not a candidate', () => {
+  const institutions = [inst('ece:9', 'Ruawai Kindergarten')];
+  const employers = [emp('The Ruawai College Board', '9429000000006', 'Ruawai College')];
+  assert.equal(matchAewv({ institutions, employers, links: [], reviews: [] })['ece:9'], undefined);
+});

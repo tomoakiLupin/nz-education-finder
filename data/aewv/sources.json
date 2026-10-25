@@ -1,4 +1,0 @@
-{
-  "_readme": "每个合法取得的 AEWV CSV 在此登记一条批次说明（F08）。CSV 放在 data/aewv/ 目录，表头至少包含 legal_name，可选 trading_name、nzbn、status。source_as_of 为名单本身的日期，未知时填 null，禁止用导入日期代替。",
-  "batches": []
-}

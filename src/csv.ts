@@ -25,7 +25,7 @@ const COLUMNS: [string, (r: Institution, ds: Dataset) => string | number | null]
   ['source', (r, ds) => ds.batchById.get(r.batch)?.sourceUrl ?? null],
   ['source_as_of', (r, ds) => ds.batchById.get(r.batch)?.sourceAsOf ?? null],
   ['imported_at', (r, ds) => ds.batchById.get(r.batch)?.importedAt ?? null],
-  ['aewv_evidence_level', (r, ds) => ds.overlays.aewv.matches[r.key]?.level ?? (ds.overlays.aewv.batches.length ? 'unmatched_unknown' : 'not_loaded')],
+  ['aewv_evidence_level', (r, ds) => ds.overlays.aewv.matches[r.key]?.level ?? 'unmatched_unknown'],
 ];
 
 const esc = (v: string | number | null) => {

@@ -57,8 +57,9 @@ export interface GeoGroup {
 
 export interface AewvCandidate {
   employer: string;
+  tradingName: string | null;
   nzbn: string | null;
-  status: string | null;
+  expiry: string | null;
   sourceAsOf: string | null;
   batch: string;
   reasons: string[];
@@ -72,23 +73,23 @@ export interface AewvMatch {
   candidates: AewvCandidate[];
 }
 
-export interface AewvBatch {
-  id: string;
-  file: string;
-  sourceUrl: string | null;
-  sourceNote: string | null;
-  sourceAsOf: string | null;
-  obtainedAt: string | null;
-  importedBy: string | null;
-  checksum: string;
+export interface AewvSource {
+  name: string;
+  url: string;
+  licence: string;
+  snapshotDate: string;
+  sha256: string;
   rows: number;
+  employers: number;
+  expiredExcluded: number;
+  fetchedAt: string;
 }
 
 export interface Overlays {
   generatedAt: string;
   enrichments: Record<string, Partial<Record<'website' | 'careers', Enrichment>>>;
   groups: GeoGroup[];
-  aewv: { batches: AewvBatch[]; matches: Record<string, AewvMatch> };
+  aewv: { source: AewvSource | null; matches: Record<string, AewvMatch> };
 }
 
 export interface Dataset {

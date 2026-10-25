@@ -18,33 +18,37 @@ function Stale({ date }: { date: string | null }) {
 
 const LEVEL: Record<AewvMatch['level'], { label: string; cls: string; note: string }> = {
   high: { label: '高可信候选', cls: 'ok', note: '已确认机构与法律雇主关系，且 NZBN 出现在所依据的认证名单中。' },
-  medium: { label: '中可信候选', cls: 'info', note: '名称等线索一致但缺少稳定标识，人工复核前不视为已核实。' },
+  medium: { label: '中可信候选', cls: 'info', note: '名称一致，但机构与雇主的对应关系尚未确认，人工复核前不视为已核实。' },
   low: { label: '低可信候选·待核实', cls: 'warn', note: '仅名称相似，不构成认证结论。' },
   conflict: { label: '多个候选·待核实', cls: 'warn', note: '存在多个同等级候选雇主，无法确定对应关系。' },
 };
 
 function Aewv({ ds, r }: { ds: Dataset; r: Institution }) {
-  const { batches, matches } = ds.overlays.aewv;
-  const m = matches[r.key];
-  const latest = batches.map((b) => b.sourceAsOf).filter(Boolean).sort().pop() ?? null;
+  const m = ds.overlays.aewv.matches[r.key];
+  const src = ds.overlays.aewv.source;
   return (
     <section className="panel">
       <h2>AEWV 雇主认证对照</h2>
-      {!batches.length ? (
-        <p><span className="tag">未知／待核实</span> 尚未导入任何 AEWV 认证雇主名单批次。</p>
+      {!src ? (
+        <p><span className="tag">未知／待核实</span> 认证雇主名单暂不可用。</p>
       ) : !m ? (
         <p>
-          <span className="tag">未知／待核实</span> 依据 {latest ? `${fmtDate(latest)} 名单` : '日期未知的名单'}未找到匹配。
-          INZ 说明部分认证雇主可选择不公开，因此“未找到”不代表“未认证”。
+          <span className="tag">未知／待核实</span> 在 {src.snapshotDate} 认证雇主名单快照（{src.employers.toLocaleString()} 个有效雇主）中，未找到与机构名称对应的雇主。
+          运营方的法律名称和商号可能都与机构名称不同，部分雇主也选择不公开，因此“未找到”不代表“未认证”。
         </p>
       ) : (
         <>
           <p><span className={`tag ${LEVEL[m.level].cls}`}>{LEVEL[m.level].label}</span> {LEVEL[m.level].note}</p>
           {m.candidates.map((c, i) => (
             <div key={i} className="candidate">
-              <div><strong>{c.employer}</strong>{c.nzbn && <span className="muted"> · NZBN {c.nzbn}</span>}{c.status && <span className="muted"> · 名单状态：{c.status}</span>}</div>
+              <div>
+                <strong>{c.employer}</strong>
+                {c.tradingName && c.tradingName !== c.employer && <span className="muted">（商号 {c.tradingName}）</span>}
+                {c.nzbn && <span className="muted"> · NZBN {c.nzbn}</span>}
+                {c.expiry && <span className="muted"> · 认证有效期至 {c.expiry}</span>}
+              </div>
               <div className="small">
-                依据 {c.sourceAsOf ? `${fmtDate(c.sourceAsOf)} 名单` : <span className="tag warn">名单日期未知</span>}，
+                依据 {c.sourceAsOf ? `${fmtDate(c.sourceAsOf)} 的 INZ 记录` : <span className="tag warn">记录日期未知</span>}，
                 {c.verifiedAt ? `${fmtDate(c.verifiedAt)} 核实${c.reviewer ? `（${c.reviewer}）` : ''}` : '尚未人工核实'}
                 {' '}<Stale date={c.verifiedAt} />
               </div>

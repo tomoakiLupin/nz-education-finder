@@ -6,6 +6,8 @@ on:
   workflow_run:
     workflows: [Update official data]
     types: [completed]
+  schedule:
+    - cron: '0 18 * * *' # daily: picks up new AEWV snapshots (published ~every 3 days)
   workflow_dispatch:
 
 permissions:
@@ -31,6 +33,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      # Full accredited-employer snapshot (checksum-verified). On failure the job stops and the live site keeps the last good build.
+      - run: node scripts/fetch-aewv.mjs
       # Builds enrichments / geo groups / AEWV matches; fails (and blocks publishing) on invalid admin data.
       - run: node scripts/build-overlays.mjs
       - run: npm run build

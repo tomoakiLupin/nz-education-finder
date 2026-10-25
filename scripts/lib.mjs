@@ -26,6 +26,10 @@ export function tokens(s) {
   return normalize(s).split(' ').filter((t) => t && !STOP.has(t));
 }
 
+// For similarity scoring only legal-form words are dropped: "Ruawai Kindergarten" must not look like "Ruawai College Board".
+const LEGAL = new Set(['the', 'of', 'and', 'ltd', 'limited', 'inc', 'incorporated', 'trust', 'trustees', 'board', 'company', 'co', 'nz']);
+const scoreTokens = (s) => normalize(s).split(' ').filter((t) => t && !LEGAL.has(t));
+
 export function jaccard(a, b) {
   const A = new Set(a), B = new Set(b);
   if (!A.size || !B.size) return 0;
@@ -209,18 +213,18 @@ export function matchAewv({ institutions, employers, links, reviews }) {
     }
     if (!cands.length) {
       const exact = byName.get(normalize(inst.name));
-      if (exact) for (const idx of exact) cands.push({ idx, level: 'medium', reasons: ['规范化后的法律名称/商号与机构名称一致', '缺少稳定标识（NZBN）关联，需人工复核'] });
+      if (exact) for (const idx of exact) cands.push({ idx, level: 'medium', reasons: ['规范化后的法律名称/商号与机构名称一致', '尚未确认机构与该雇主（NZBN）的对应关系，需人工复核'] });
     }
     if (!cands.length) {
-      const it = tokens(inst.name);
       const pool = new Set();
-      for (const t of it) {
+      for (const t of tokens(inst.name)) {
         const s = tokenIndex.get(t);
         if (s && s.size <= 200) for (const i of s) pool.add(i); // ignore very common tokens
       }
+      const it = scoreTokens(inst.name);
       for (const idx of pool) {
         const e = employers[idx];
-        const score = Math.max(jaccard(it, tokens(e.legal_name)), jaccard(it, tokens(e.trading_name)));
+        const score = Math.max(jaccard(it, scoreTokens(e.legal_name)), jaccard(it, scoreTokens(e.trading_name)));
         if (score >= 0.75) cands.push({ idx, level: 'low', reasons: [`名称相似（相似度 ${score.toFixed(2)}），仅为候选`] });
       }
     }
@@ -232,13 +236,22 @@ export function matchAewv({ institutions, employers, links, reviews }) {
     const describe = (c) => {
       const e = employers[c.idx];
       const review = confirmedReview.get(`${inst.key}|${empKey(e)}`);
+      // Supporting context only: it never raises the level on its own.
+      const extra = [];
+      if (e.city && inst.city) {
+        extra.push(normalize(e.city) === normalize(inst.city)
+          ? `雇主登记城市（${e.city}）与机构所在城市一致`
+          : `注意：雇主登记城市为 ${e.city}，机构位于 ${inst.city}`);
+      }
+      if (e.sector) extra.push(`雇主行业：${e.sector}`);
       return {
         employer: e.legal_name || e.trading_name,
+        tradingName: e.trading_name || null,
         nzbn: e.nzbn,
-        status: e.status || null,
+        expiry: e.expiry || null,
         sourceAsOf: e.source_as_of || null,
         batch: e.batch,
-        reasons: c.reasons,
+        reasons: [...c.reasons, ...extra],
         reviewStatus: review ? 'verified' : c.level === 'high' ? 'link_confirmed' : 'pending',
         verifiedAt: review?.verified_at ?? c.link?.verified_at ?? null,
         reviewer: review?.reviewer ?? null,

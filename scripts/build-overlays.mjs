@@ -2,7 +2,7 @@
 // Runs offline at deploy time; the official snapshot in public/data/institutions.json is never modified.
 import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { sha256, safeUrl, parseCsv, normNzbn, matchAewv } from './lib.mjs';
+import { safeUrl, parseCsv, normNzbn, matchAewv } from './lib.mjs';
 
 const DATA = new URL('../data/', import.meta.url);
 const OUT = new URL('../public/data/', import.meta.url);
@@ -43,27 +43,37 @@ function buildGroups(groups, records) {
   });
 }
 
+/** Full accredited-employer snapshot downloaded by scripts/fetch-aewv.mjs. Expired accreditations are excluded. */
 async function loadAewv() {
-  const { batches } = await readJson(new URL('aewv/sources.json', DATA));
-  const employers = [];
-  const meta = [];
-  for (const b of batches) {
-    const file = new URL(`aewv/${b.file}`, DATA);
-    if (!existsSync(file)) throw new Error(`AEWV batch file missing: ${b.file}`);
-    const buf = await readFile(file);
-    const rows = parseCsv(buf.toString('utf8'));
-    if (rows.length && !('legal_name' in rows[0])) throw new Error(`${b.file}: header must include legal_name`);
-    const id = `aewv-${sha256(buf).slice(0, 12)}`;
-    for (const r of rows) {
-      if (!r.legal_name && !r.trading_name) continue;
-      employers.push({ ...r, nzbn: normNzbn(r.nzbn), source_as_of: b.source_as_of ?? null, batch: id });
-    }
-    meta.push({
-      id, file: b.file, sourceUrl: safeUrl(b.source_url), sourceNote: b.source_note ?? null,
-      sourceAsOf: b.source_as_of ?? null, obtainedAt: b.obtained_at ?? null, importedBy: b.imported_by ?? null,
-      checksum: sha256(buf), rows: rows.length,
-    });
-  }
+  const csv = new URL('aewv/snapshot.csv', DATA);
+  const metaFile = new URL('aewv/snapshot.json', DATA);
+  if (!existsSync(csv) || !existsSync(metaFile)) return { employers: [], meta: null };
+  const snap = await readJson(metaFile);
+  const today = new Date().toISOString().slice(0, 10);
+  const rows = parseCsv(await readFile(csv, 'utf8'));
+  const employers = rows
+    .filter((r) => r.expiry_date_of_accreditation && r.expiry_date_of_accreditation >= today)
+    .map((r) => ({
+      legal_name: r.employer_name,
+      trading_name: r.trading_name,
+      nzbn: normNzbn(r.nzbn),
+      expiry: r.expiry_date_of_accreditation,
+      city: r.city || null,
+      sector: r.subsector || r.sector || null,
+      source_as_of: r.last_verified_at || r.official_snapshot_date || null,
+      batch: `nzaei-${snap.snapshot_date}`,
+    }));
+  const meta = {
+    name: snap.source,
+    url: snap.sourceUrl,
+    licence: snap.licence,
+    snapshotDate: snap.snapshot_date,
+    sha256: snap.sha256,
+    rows: rows.length,
+    employers: employers.length,
+    expiredExcluded: rows.length - employers.length,
+    fetchedAt: snap.fetchedAt,
+  };
   return { employers, meta };
 }
 
@@ -83,7 +93,7 @@ async function main() {
     generatedAt: new Date().toISOString(),
     enrichments: enrich.out,
     groups: buildGroups(groups, records),
-    aewv: { batches: aewv.meta, matches },
+    aewv: { source: aewv.meta, matches },
   };
   await writeFile(new URL('overlays.json', OUT), JSON.stringify(overlays));
   const levels = Object.values(matches).reduce((a, m) => ((a[m.level] = (a[m.level] ?? 0) + 1), a), {});

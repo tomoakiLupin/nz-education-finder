@@ -14,7 +14,7 @@
 | F05 | 管理员在 `data/enrichments.json` 维护官网／Careers 链接（来源、核实时间、发布状态）；修改历史即 git 历史 |
 | F06 | 导出当前筛选结果 CSV（仅公开字段 + 来源与日期；防公式注入） |
 | F07 | Leaflet + OpenStreetMap，点聚合；与列表共用筛选；缺坐标不绘点；瓦片失败时列表照常可用 |
-| F08 | 官方目录：暂存校验、校验和幂等、行数骤减拒绝整批、消失记录标“来源缺失·待核实”；AEWV CSV 登记批次（摘要、来源、名单日期、取得日期、导入者） |
+| F08 | 官方目录：暂存校验、校验和幂等、行数骤减拒绝整批、消失记录标“来源缺失·待核实”；AEWV 名单使用带校验和的完整快照，每日检查更新（见下） |
 | F09 | AEWV 匹配按证据分高／中／低／冲突；高可信需已确认的机构↔雇主关系 + NZBN；未找到显示“未知／待核实” |
 | F10 | Education Gazette／SEEK／Trade Me 入口 + 可复制关键词；预填深链接默认关闭（`src/config.ts`），待逐平台核实条款 |
 | F18 | 见下方“管理员与权限” |
@@ -38,7 +38,22 @@
 
 之后：
 - **Update official data** 每周自动拉取官方目录，有变化才提交，然后自动重新部署；也可在 Actions 页手动运行。
+- **Deploy site** 每天定时运行一次，下载最新的 AEWV 认证雇主快照并重新计算匹配。
 - 任何对 `main` 的推送都会重新部署。
+
+## AEWV 数据来源
+
+INZ 官方查询页（[Accredited employer list](https://www.immigration.govt.nz/work/requirements-for-work-visas/approved-employers/accredited-employer-list/)）只能按名称或 NZBN 逐个查，结果超过约 1,000 条会被拒绝，没有整表下载。
+
+因此本站使用 [NZ Accredited Employer Inspector](https://nzaei.zemo.bio/open-data/) 发布的公开快照：以 MBIE 依 OIA 公布的完整名单为基础，结合 INZ 在线查询逐条复核，约每三天发布一次完整 CSV（约 3 万条，含雇主名称、商号、NZBN、到期日、行业、城市），每个快照固定不变，并附 SHA-256 和行数。
+
+`scripts/fetch-aewv.mjs` 读取 [catalog.json](https://data.nzaei.zemo.bio/catalog.json)，下载最新快照，校验 SHA-256、行数和必需字段，任一项不符就失败退出（线上保持上一版）。快照只在构建时使用，**不提交到仓库**（`data/aewv/snapshot.*` 已在 .gitignore 中）：源数据未声明再利用许可（NOASSERTION），所以网站只公开与机构匹配的雇主信息，不转载完整名单。
+
+注意：
+- 这是第三方独立项目，不是 INZ 官方产品；快照是带日期的观察记录，重要决定请以 INZ 官方查询为准。
+- 选择不公开的雇主不在名单中，所以“未找到”不代表“未认证”。
+- 过期认证不参与匹配；城市和行业只作为参考理由显示，不会提高匹配等级。
+- 未使用 ApplyWave：其条款禁止抓取、批量复制和再发布数据。
 
 ## 管理员操作
 
@@ -59,15 +74,6 @@
 
 同一字段以最后一条为准：要停用就追加一条 `"publish_status": "disabled"`，草稿用 `"draft"`。只接受 http/https 链接。
 
-**导入 AEWV 名单**：把合法取得的 CSV（表头至少含 `legal_name`，可选 `trading_name`、`nzbn`、`status`）放进 `data/aewv/`，并在 `data/aewv/sources.json` 登记：
-
-```json
-{ "batches": [ { "file": "aewv-2026-10.csv", "source_url": "https://www.immigration.govt.nz/...", "source_note": "如何取得",
-  "source_as_of": "2026-10-20", "obtained_at": "2026-10-25", "imported_by": "your-github-name" } ] }
-```
-
-`source_as_of` 未知就填 `null`，不要用导入日期代替。若 CSV 含个人信息，不要提交到公开仓库。
-
 **确认雇主关系（高可信的前提）**：`data/employer-links.json`；**人工复核结论**：`data/aewv-reviews.json`（`confirmed` / `rejected`，不改写原始匹配）。
 
 **North Shore 分组**：`data/geo-groups.json` 中的 suburb 清单（当前为草案，`approved: false`）。
@@ -77,6 +83,7 @@
 ```bash
 npm install
 npm run import                     # 拉取官方目录到 public/data/
+node scripts/fetch-aewv.mjs         # 下载 AEWV 认证雇主快照
 node scripts/build-overlays.mjs    # 生成 overlays.json
 npm run dev
 npm test                           # 导入／合并／AEWV 匹配单元测试

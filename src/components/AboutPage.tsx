@@ -3,7 +3,8 @@ import { CAT_LABEL, fmtDate, safeHref } from '../format';
 import { REPO_URL } from '../config';
 
 export function AboutPage({ ds }: { ds: Dataset }) {
-  const latest = (['school', 'ece'] as const).map((c) => [...ds.batches].reverse().find((b) => b.sourceType === c)).filter(Boolean);
+  const aewv = ds.overlays.aewv.source;
+  const latest =(['school', 'ece'] as const).map((c) => [...ds.batches].reverse().find((b) => b.sourceType === c)).filter(Boolean);
   return (
     <article className="prose">
       <h1>数据与说明</h1>
@@ -31,14 +32,22 @@ export function AboutPage({ ds }: { ds: Dataset }) {
         同一内容重复导入不会产生新批次。在新批次中消失的机构标记为“来源缺失·待核实”，不视为已关闭，也不删除人工补充资料。
       </p>
 
-      <h2>AEWV 名单批次</h2>
-      {ds.overlays.aewv.batches.length ? (
-        <ul>
-          {ds.overlays.aewv.batches.map((b) => (
-            <li key={b.id}>{b.file}：名单日期 {b.sourceAsOf ?? '未知'}，取得 {b.obtainedAt ?? '未知'}，{b.rows} 行，导入者 {b.importedBy ?? '未注明'}</li>
-          ))}
-        </ul>
-      ) : <p>尚未导入。所有机构的 AEWV 状态显示为“未知／待核实”。</p>}
+      <h2>AEWV 认证雇主名单</h2>
+      {aewv ? (
+        <>
+          <p>
+            来源：<a href={safeHref(aewv.url)} target="_blank" rel="noopener noreferrer">{aewv.name}</a>。
+            该项目以 MBIE 依《官方信息法》（OIA）公布的完整名单为基础，结合 INZ 在线查询逐条复核，约每三天发布一次带校验和的完整快照。
+            INZ 本身不提供整表下载。本站每天检查是否有新快照，只公开与机构匹配的雇主信息，不转载完整名单。
+          </p>
+          <ul>
+            <li>快照日期 {aewv.snapshotDate}，共 {aewv.rows.toLocaleString()} 条，SHA-256 <code>{aewv.sha256.slice(0, 12)}</code>，本站获取于 {fmtDate(aewv.fetchedAt, true)}</li>
+            <li>参与匹配的有效认证雇主 {aewv.employers.toLocaleString()} 个（另有 {aewv.expiredExcluded.toLocaleString()} 个已过有效期）</li>
+            <li>有匹配候选的机构 {Object.keys(ds.overlays.aewv.matches).length.toLocaleString()} 家</li>
+            <li>源数据未声明再利用许可（{aewv.licence}），仅作求职参考，请以 INZ 官方查询为准</li>
+          </ul>
+        </>
+      ) : <p>尚未查询。所有机构的 AEWV 状态显示为“未知／待核实”。</p>}
 
       <h2>口径</h2>
       <ul>
@@ -60,6 +69,7 @@ export function AboutPage({ ds }: { ds: Dataset }) {
       <p>
         机构目录：Ministry of Education — <a href="https://catalogue.data.govt.nz/dataset/directory-of-educational-institutions" target="_blank" rel="noopener noreferrer">Directory of educational institutions</a>（data.govt.nz / Education Counts），
         <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>。本站对字段做了筛选和标签映射。
+        AEWV 认证雇主：NZ Accredited Employer Inspector, Employer Records Snapshot（源数据包括 MBIE 公布的 Immigration New Zealand 信息）。
         地图：© OpenStreetMap contributors。
       </p>
       {REPO_URL && <p>源代码与修改历史：<a href={safeHref(REPO_URL)} target="_blank" rel="noopener noreferrer">{REPO_URL.replace('https://', '')}</a></p>}
