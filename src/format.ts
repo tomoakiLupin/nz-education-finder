@@ -1,7 +1,8 @@
 import type { Category, Institution } from './types';
+import { getLang, t } from './i18n';
 
 export const NONE = '__none__';
-export const NONE_LABEL = '未提供';
+export const noneLabel = () => t('未提供', 'Not provided');
 
 export const CAT_LABEL: Record<Category, string> = { school: 'School', ece: 'ECE' };
 
@@ -24,18 +25,17 @@ export function districtLabel(r: Pick<Institution, 'district'>): string | null {
   return m ? `Auckland - ${m[1]}` : r.district;
 }
 
-const nzDateTime = new Intl.DateTimeFormat('zh-CN', {
-  timeZone: 'Pacific/Auckland', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+const fmt = (lang: string, withTime: boolean) => new Intl.DateTimeFormat(lang === 'zh' ? 'zh-CN' : 'en-NZ', {
+  timeZone: 'Pacific/Auckland', year: 'numeric', month: '2-digit', day: '2-digit', ...(withTime ? { hour: '2-digit', minute: '2-digit', hour12: false } : {}),
 });
-const nzDate = new Intl.DateTimeFormat('zh-CN', { timeZone: 'Pacific/Auckland', year: 'numeric', month: '2-digit', day: '2-digit' });
 
 /** UTC timestamp → Auckland local time with explicit zone label. Date-only values keep date precision. */
 export function fmtDate(v: string | null | undefined, withTime = false): string {
-  if (!v) return '日期未知';
+  if (!v) return t('日期未知', 'Date unknown');
   if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
   const d = new Date(v);
   if (Number.isNaN(d.getTime())) return v;
-  return `${(withTime ? nzDateTime : nzDate).format(d)}${withTime ? '（NZ 时间）' : ''}`;
+  return `${fmt(getLang(), withTime).format(d)}${withTime ? t('（NZ 时间）', ' (NZ time)') : ''}`;
 }
 
 export function daysSince(v: string | null | undefined): number | null {

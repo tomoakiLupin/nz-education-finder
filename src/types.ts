@@ -1,5 +1,7 @@
 export type Category = 'school' | 'ece';
 
+export interface Bilingual { zh: string; en: string }
+
 export interface Institution {
   key: string;
   cat: Category;
@@ -62,7 +64,7 @@ export interface AewvCandidate {
   expiry: string | null;
   sourceAsOf: string | null;
   batch: string;
-  reasons: string[];
+  reasons: (Bilingual | string)[];
   reviewStatus: 'verified' | 'link_confirmed' | 'pending';
   verifiedAt: string | null;
   reviewer: string | null;
@@ -109,7 +111,18 @@ export interface Job {
   closingTime: string | null;
   url: string;
   key: string | null; // linked directory institution, null when the advertiser could not be matched unambiguously
+  firstSeen?: string;
+  delisted?: string; // date it disappeared from the Gazette (archive only)
+  visa?: VisaNote[] | null; // null = ad text not checked yet
+  visaCheckedAt?: string | null;
 }
+
+export type VisaKind = 'no_overseas' | 'sponsor' | 'residency' | 'other';
+/** A sentence quoted from the advertisement about visas / residency / overseas applicants. */
+export interface VisaNote { kind: VisaKind; text: string }
+
+/** Past vacancies kept by the archive (subset of listing fields). */
+export type ArchivedJob = Omit<Job, 'learning' | 'allowances'> & Partial<Pick<Job, 'learning' | 'allowances'>>;
 
 export interface JobsData {
   source: { name: string; url: string; sha256: string; count: number; fetchedAt: string } | null;
@@ -123,6 +136,8 @@ export interface Dataset {
   overlays: Overlays;
   jobs: JobsData;
   jobsByKey: Map<string, Job[]>;
+  archive: ArchivedJob[];
+  archiveByKey: Map<string, ArchivedJob[]>;
   byKey: Map<string, Institution>;
   batchById: Map<string, Batch>;
   search: Map<string, string>;

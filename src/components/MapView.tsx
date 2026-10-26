@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -60,7 +61,7 @@ export function MapView({ records, onOpen }: { records: Institution[]; onOpen: (
       b.onclick = () => onOpen(r.key);
       const meta = document.createElement('div');
       meta.className = 'muted';
-      meta.textContent = `${CAT_LABEL[r.cat]} · ${r.type ?? '类型未提供'} · ${r.suburb ?? r.city ?? ''}`;
+      meta.textContent = `${CAT_LABEL[r.cat]} · ${r.type ?? t('类型未提供', 'type not provided')} · ${r.suburb ?? r.city ?? ''}`;
       div.append(b, meta);
       mk.bindPopup(div);
       return mk;
@@ -75,10 +76,10 @@ export function MapView({ records, onOpen }: { records: Institution[]; onOpen: (
 
   return (
     <div className="map-wrap">
-      {tileFail && <div className="banner warn">地图瓦片加载失败，列表与筛选仍可正常使用。</div>}
-      <div ref={el} className="map" role="region" aria-label="机构地图" />
+      {tileFail && <div className="banner warn">{t('地图瓦片加载失败，列表与筛选仍可正常使用。', 'Map tiles failed to load; the list and filters still work.')}</div>}
+      <div ref={el} className="map" role="region" aria-label={t('机构地图', 'Institution map')} />
       <p className="muted small">
-        地图显示 {located.length} 家；{records.length - located.length} 家缺少有效坐标未绘点（仍在列表中）。
+        {t(`地图显示 ${located.length} 家；${records.length - located.length} 家缺少有效坐标未绘点（仍在列表中）。`, `${located.length} shown on the map; ${records.length - located.length} without valid coordinates are only in the list. `)}
         <span className="legend"><i className="dot school" />School <i className="dot ece" />ECE</span>
       </p>
     </div>
@@ -94,6 +95,6 @@ export function MiniMap({ r }: { r: Institution }) {
     L.circleMarker(pos(r), markerStyle(r)).addTo(m);
     return () => { m.remove(); };
   }, [r]);
-  if (r.lat === null || r.lon === null) return <p className="muted">官方数据未提供有效坐标，不在地图上绘点。</p>;
-  return <div ref={el} className="minimap" role="region" aria-label="机构位置地图" />;
+  if (r.lat === null || r.lon === null) return <p className="muted">{t('官方数据未提供有效坐标，不在地图上绘点。', 'The official data has no valid coordinates, so it is not shown on the map.')}</p>;
+  return <div ref={el} className="minimap" role="region" aria-label={t('机构位置地图', 'Location map')} />;
 }

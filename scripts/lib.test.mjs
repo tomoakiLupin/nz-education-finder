@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalize, safeUrl, validCoord, toPublicRecord, mergeBatch, parseCsv, matchAewv, matchJobs } from './lib.mjs';
+import { normalize, safeUrl, validCoord, toPublicRecord, mergeBatch, parseCsv, matchAewv, matchJobs, extractVisa, gazetteDescription } from './lib.mjs';
 
 test('normalize keeps matching tolerant of macrons, case and spacing', () => {
   assert.equal(normalize('  Kaipātiki   Kindergarten '), 'kaipatiki kindergarten');
@@ -118,4 +118,55 @@ test('matchJobs links vacancies by exact name, breaks ties by region, never gues
     { institute: 'Sport Bay of Plenty', region: 'Bay of Plenty' },
   ];
   assert.deepEqual(matchJobs(jobs, inst), ['school:3', 'school:2', null, null, null]);
+});
+
+test('matchAewv links ECE chain branches to the brand employer, but not place names or unrelated businesses', () => {
+  const ece = (id, name, suburb) => ({ key: `ece:${id}`, cat: 'ece', name, suburb, city: 'Auckland', district: null, region: 'Auckland Region' });
+  const institutions = [
+    ece(1, 'Kindercare Learning Centres Botany Downs', 'Botany Downs'),
+    ece(2, 'Kindercare Learning Centre - Papatoetoe', 'Papatoetoe'),
+    ece(3, 'Ruawai Kindergarten', 'Ruawai'),
+    ece(4, 'Ruawai Playgroup', 'Ruawai'),
+    ece(5, 'Capital Kids Co-Operative', 'Te Aro'),
+    ece(6, 'Capital City Preschool', 'Te Aro'),
+    { key: 'school:7', cat: 'school', name: 'Kindercare School', suburb: 'X', city: 'Auckland', district: null, region: 'Auckland Region' },
+  ];
+  const employers = [
+    { legal_name: 'Kindercare Learning Centres Limited', trading_name: 'kindercare Learning Centers Limited', nzbn: '9429040386706', industry: 'Education and Training / Preschool and School Education' },
+    { legal_name: 'The Ruawai College Board', trading_name: '', nzbn: '9429000000001', industry: 'Education and Training' },
+    { legal_name: 'Capital Scaffolding Limited', trading_name: 'Capital', nzbn: '9429000000002', industry: 'Construction' },
+  ];
+  const m = matchAewv({ institutions, employers, links: [], reviews: [] });
+  assert.equal(m['ece:1'].level, 'medium');
+  assert.equal(m['ece:2'].candidates[0].nzbn, '9429040386706');
+  assert.ok(!m['ece:3'] && !m['ece:4'] && !m['ece:5'] && !m['ece:6'] && !m['school:7']);
+});
+
+test('extractVisa tags residency, no-overseas and sponsorship statements', () => {
+  const text = [
+    'We are a friendly kindergarten.',
+    'Applicants must be NZ registered teachers and have NZ residency or a valid NZ work visa. Great team!',
+    'Unfortunately we are unable to sponsor work visas.',
+    'Overseas applicants will not be considered.',
+    'Full-time, ECE Qualified teacher (Accredited employer)',
+    'Eligibility: Applications are open to New Zealand residents only',
+  ].join('\n');
+  assert.deepEqual(extractVisa(text).map((x) => x.kind), ['residency', 'no_overseas', 'no_overseas', 'sponsor', 'no_overseas']);
+  assert.equal(extractVisa(text)[0].text, 'Applicants must be NZ registered teachers and have NZ residency or a valid NZ work visa.');
+  assert.deepEqual(extractVisa('Join our team of passionate educators.'), []);
+});
+
+test('gazetteDescription extracts the ad body as lines without markup', () => {
+  const html = '<div class="vd-description"><p>Hello &amp; welcome.</p>\n<p>Must hold a <b>valid</b> visa.</p></div><ul class="vd-contact-lines"><li>021</li></ul>';
+  assert.equal(gazetteDescription(html), 'Hello & welcome.\nMust hold a valid visa.');
+});
+
+test('extractVisa treats negative sponsorship statements as no-overseas', () => {
+  const kinds = (t) => extractVisa(t).map((x) => x.kind);
+  assert.deepEqual(kinds('Please note: This position is not eligible for AEWV sponsorship.'), ['no_overseas']);
+  assert.deepEqual(kinds('Note as we are not currently an accredited employer, candidates must hold valid NZ work rights.'), ['no_overseas']);
+  assert.deepEqual(kinds('Applicants requiring visa sponsorship will not be considered.'), ['no_overseas']);
+  assert.deepEqual(kinds('Please note - we are not looking for overseas applicants'), ['no_overseas']);
+  assert.deepEqual(kinds('We are an accredited employer.'), ['sponsor']);
+  assert.deepEqual(kinds('Candidates must have a New Zealand Work Visa allowing full-time employment.'), ['residency']);
 });

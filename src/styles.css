@@ -15,6 +15,9 @@
   --ok-ink: #17643a;
   --info-bg: #e8f0fe;
   --info-ink: #1d4ed8;
+  --bad-bg: #fde8e8;
+  --bad-ink: #b42318;
+  --mark-bg: #fff1a8;
   --radius: 10px;
   --shadow: 0 1px 2px rgb(16 24 40 / 6%), 0 1px 3px rgb(16 24 40 / 8%);
   color-scheme: light;
@@ -37,6 +40,9 @@
     --ok-ink: #6ee7a0;
     --info-bg: #172544;
     --info-ink: #93b4fd;
+    --bad-bg: #3d1717;
+    --bad-ink: #fda4a4;
+    --mark-bg: #5c4a12;
     --shadow: none;
     color-scheme: dark;
   }
@@ -185,3 +191,31 @@ th { color: var(--muted); font-weight: 600; }
 .alerts .chip { font-size: 0.76rem; padding: 2px 8px; }
 .other-sites { margin-bottom: 12px; padding: 12px 14px; }
 .site-list a { font-weight: 600; }
+
+/* Language switch */
+header.site nav .lang { font: inherit; font-size: 0.85rem; font-weight: 600; margin-left: 6px; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); cursor: pointer; }
+header.site nav .lang:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Open / archive switch uses links styled like the segmented control */
+.seg a { flex: 1 1 auto; text-align: center; font-size: 0.9rem; color: var(--muted); padding: 6px; border-radius: 7px; text-decoration: none; white-space: nowrap; }
+.seg a.on { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: var(--shadow); }
+
+/* Visa statements */
+.tag.bad { background: var(--bad-bg); color: var(--bad-ink); border-color: transparent; }
+.visa-tags { display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0 0; }
+.visa-panel { border-left: 4px solid var(--border); }
+.visa-panel.bad { border-left-color: var(--bad-ink); }
+.visa-panel.warn { border-left-color: var(--warn-ink); }
+.visa-panel.ok { border-left-color: var(--ok-ink); }
+.visa-panel .visa-tags { margin-bottom: 8px; }
+.quotes { list-style: none; margin: 10px 0 6px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.quotes blockquote { margin: 0; padding: 8px 12px; background: var(--bg); border-radius: 8px; border-left: 3px solid var(--border); font-size: 0.95rem; }
+.quotes .q-no_overseas blockquote { border-left-color: var(--bad-ink); }
+.quotes .q-residency blockquote { border-left-color: var(--warn-ink); }
+.quotes .q-sponsor blockquote { border-left-color: var(--ok-ink); }
+mark { background: var(--mark-bg); color: inherit; padding: 0 2px; border-radius: 3px; font-weight: 600; }
+
+/* Hiring history */
+h3.year { font-size: 0.9rem; color: var(--muted); margin: 12px 0 4px; }
+.history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.history li { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: baseline; }

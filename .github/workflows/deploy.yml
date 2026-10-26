@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write # commits the vacancy archive (data/archive/)
   pages: write
   id-token: write
 
@@ -68,6 +68,20 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
+      # Keep past vacancies: the archive is committed so it survives across builds. Pushes made with GITHUB_TOKEN
+      # do not trigger workflows, so this cannot loop.
+      - name: Commit vacancy archive
+        run: |
+          if git diff --quiet -- data/archive; then
+            echo "Archive unchanged."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/archive
+          git commit -m "data: vacancy archive $(date -u +%Y-%m-%dT%H:%MZ)"
+          git pull --rebase
+          git push
 
   deploy:
     needs: build

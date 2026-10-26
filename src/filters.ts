@@ -1,5 +1,5 @@
 import type { Category, Dataset, Institution } from './types';
-import { NONE, districtLabel, normalize } from './format';
+import { NONE, districtLabel, noneLabel, normalize } from './format';
 
 export interface Filters {
   q: string;
@@ -96,7 +96,7 @@ export function optionsFor(ds: Dataset, f: Filters) {
     return m;
   };
   const toOpts = (m: Map<string, number>, label = (v: string) => v): Option[] =>
-    [...m].map(([value, c]) => ({ value, label: value === NONE ? '未提供' : label(value), count: c }))
+    [...m].map(([value, c]) => ({ value, label: value === NONE ? noneLabel() : label(value), count: c }))
       .sort((a, b) => (a.value === NONE ? 1 : b.value === NONE ? -1 : a.label.localeCompare(b.label, 'en')));
   return {
     region: toOpts(count('region', (r) => val(r.region))),

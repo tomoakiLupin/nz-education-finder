@@ -60,6 +60,7 @@ async function loadAewv() {
       expiry: r.expiry_date_of_accreditation,
       city: r.city || null,
       sector: r.subsector || r.sector || null,
+      industry: [r.sector, r.subsector].filter(Boolean).join(' / ') || null,
       source_as_of: r.last_verified_at || r.official_snapshot_date || null,
       batch: `nzaei-${snap.snapshot_date}`,
     }));
@@ -77,17 +78,27 @@ async function loadAewv() {
   return { employers, meta };
 }
 
-/** Vacancies from scripts/fetch-jobs.mjs, linked to institutions; closed ones dropped. Missing file → empty list. */
+/**
+ * Open vacancies (data/jobs/gazette.json) and past ones (committed data/archive/jobs.jsonl), both linked to
+ * institutions. Past = no longer listed on the Gazette or past the closing date. Missing files → empty lists.
+ */
 async function buildJobs(records) {
   const file = new URL('jobs/gazette.json', DATA);
-  if (!existsSync(file)) return { source: null, jobs: [] };
-  const { source, jobs } = await readJson(file);
+  const archiveFile = new URL('archive/jobs.jsonl', DATA);
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Pacific/Auckland' }).format(new Date());
+  const { source, jobs } = existsSync(file) ? await readJson(file) : { source: null, jobs: [] };
   const open = jobs.filter((j) => j.closing >= today);
-  const keys = matchJobs(open, records);
-  return { source, jobs: open.map((j, i) => ({ ...j, key: keys[i] })) };
+  const openIds = new Set(open.map((j) => j.id));
+  const past = existsSync(archiveFile)
+    ? (await readFile(archiveFile, 'utf8')).split('\n').filter(Boolean).map((l) => JSON.parse(l)).filter((j) => !openIds.has(j.id))
+    : [];
+  const link = (list) => { const keys = matchJobs(list, records); return list.map((j, i) => ({ ...j, key: keys[i] })); };
+  const slim = ({ id, ref, title, institute, region, sectors, roles, positions, beginning, closing, closingTime, url, firstSeen, delisted, visa, key }) =>
+    ({ id, ref, title, institute, region, sectors, roles, positions, beginning, closing, closingTime, url, firstSeen, delisted, visa, key });
+  return { current: { source, jobs: link(open) }, archive: { generatedAt: new Date().toISOString(), jobs: link(past).map(slim) } };
 }
 
+const VISA_TEXT = { no_overseas: '不接受海外申请／不提供签证担保', sponsor: '提及 AEWV／签证担保', residency: '要求／优先 NZ 居民或有效工作签证', other: '提及签证／海外申请人' };
 const SITE_URL = (process.env.SITE_URL ?? '').replace(/\/?$/, '/').replace(/^\/$/, '');
 const LEVEL_TEXT = { high: '高可信', medium: '中可信', low: '低可信·待核实', conflict: '多个候选·待核实' };
 const xml = (v) => String(v ?? '').replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' })[c]);
@@ -103,7 +114,8 @@ function atomFeed({ id, title, jobs, matches, records, fetchedAt }) {
     const m = j.key && matches[j.key];
     const aewv = m ? `AEWV ${LEVEL_TEXT[m.level]}：${m.candidates[0].employer}${m.candidates[0].expiry ? `（有效至 ${m.candidates[0].expiry}）` : ''}` : 'AEWV 未知';
     const place = r ? [r.suburb, r.city].filter(Boolean).join(', ') : j.region;
-    const summary = `${j.institute} · ${place ?? ''} · ${j.positions.join(' / ')} · 截止 ${j.closing}${j.closingTime ? ` ${j.closingTime}` : ''} · ${aewv}`;
+    const visa = [...new Set((j.visa ?? []).map((v) => VISA_TEXT[v.kind]))].join('；');
+    const summary = `${j.institute} · ${place ?? ''} · ${j.positions.join(' / ')} · 截止 ${j.closing}${j.closingTime ? ` ${j.closingTime}` : ''} · ${aewv}${visa ? ` · 签证：${visa}` : ''}`;
     return `<entry><id>tag:nz-education-finder,2026:gazette-${j.id}</id><title>${xml(`${j.title} — ${j.institute}`)}</title>` +
       `<link href="${xml(SITE_URL ? `${SITE_URL}#/j/${j.id}` : j.url)}"/><updated>${fetchedAt}</updated><summary>${xml(summary)}</summary>` +
       j.roles.map((x) => `<category term="${xml(x)}"/>`).join('') + (j.region ? `<category term="${xml(j.region)}"/>` : '') + '</entry>';
@@ -134,15 +146,16 @@ async function main() {
     aewv: { source: aewv.meta, matches },
   };
   await writeFile(new URL('overlays.json', OUT), JSON.stringify(overlays));
-  const jobs = await buildJobs(records);
+  const { current: jobs, archive } = await buildJobs(records);
   await writeFile(new URL('jobs.json', OUT), JSON.stringify(jobs));
+  await writeFile(new URL('archive.json', OUT), JSON.stringify(archive));
   if (jobs.source) {
     const common = { matches, records, fetchedAt: jobs.source.fetchedAt };
     await writeFile(new URL('feed.xml', OUT), atomFeed({ ...common, id: 'gazette-all', title: 'Education Gazette 新职位', jobs: jobs.jobs }));
     await writeFile(new URL('feed-aewv.xml', OUT), atomFeed({ ...common, id: 'gazette-aewv', title: 'Education Gazette 新职位（雇主有 AEWV 认证候选）', jobs: jobs.jobs.filter((j) => j.key && matches[j.key]) }));
   }
   const linked = jobs.jobs.filter((j) => j.key);
-  console.log(`jobs: ${jobs.jobs.length} open, ${linked.length} linked to institutions, ${linked.filter((j) => matches[j.key]).length} with AEWV candidates`);
+  console.log(`jobs: ${jobs.jobs.length} open, ${archive.jobs.length} archived, ${linked.length} linked to institutions, ${linked.filter((j) => matches[j.key]).length} with AEWV candidates`);
   const levels = Object.values(matches).reduce((a, m) => ((a[m.level] = (a[m.level] ?? 0) + 1), a), {});
   console.log(`enrichments: ${Object.keys(enrich.out).length} institutions; groups: ${overlays.groups.map((g) => `${g.id}=${g.members.length}`).join(', ')}; aewv employers: ${aewv.employers.length}, matches: ${JSON.stringify(levels)}`);
   if (enrich.problems.length) {

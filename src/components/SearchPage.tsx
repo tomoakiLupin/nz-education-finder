@@ -4,6 +4,7 @@ import { applyFilters, optionsFor, pruneInvalid, DEFAULT_FILTERS, type Filters, 
 import { CAT_LABEL, districtLabel } from '../format';
 import { downloadCsv } from '../csv';
 import { MapView } from './MapView';
+import { t } from '../i18n';
 
 const PAGE_SIZE = 50;
 
@@ -13,13 +14,13 @@ function Select({ id, label, value, options, onChange, disabledHint }: {
   id: string; label: string; value: string; options: Option[]; onChange: (v: string) => void; disabledHint?: string;
 }) {
   const grouped = options.some((o) => o.group);
-  const render = (os: Option[]) => os.map((o) => <option key={o.value} value={o.value}>{o.label}（{o.count}）</option>);
+  const render = (os: Option[]) => os.map((o) => <option key={o.value} value={o.value}>{o.label} ({o.count})</option>);
   const disabled = !options.length && !value;
   return (
     <div className="field">
       <label htmlFor={id}>{label}</label>
       <select id={id} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
-        <option value="">{disabled && disabledHint ? disabledHint : '全部'}</option>
+        <option value="">{disabled && disabledHint ? disabledHint : t('全部', 'All')}</option>
         {grouped
           ? (['school', 'ece'] as const).map((g) => {
               const os = options.filter((o) => o.group === g);
@@ -48,59 +49,59 @@ export function SearchPage({ ds, f, setF, open }: Props) {
 
   return (
     <div className="search-layout">
-      <aside className="filters" aria-label="筛选条件">
-        <div className="seg" role="tablist" aria-label="目录类别">
+      <aside className="filters" aria-label={t('筛选条件', 'Filters')}>
+        <div className="seg" role="tablist" aria-label={t('目录类别', 'Directory category')}>
           {(['all', 'school', 'ece'] as const).map((c) => (
             <button key={c} role="tab" aria-selected={f.cat === c} className={f.cat === c ? 'on' : ''} onClick={() => update({ cat: c })}>
-              {c === 'all' ? '全部' : CAT_LABEL[c]} <span className="count">{catCounts[c]}</span>
+              {c === 'all' ? t('全部', 'All') : CAT_LABEL[c]} <span className="count">{catCounts[c]}</span>
             </button>
           ))}
         </div>
         <div className="field">
-          <label htmlFor="q">机构名称或官方 ID</label>
-          <input id="q" type="search" value={f.q} placeholder="例如 Takapuna、Kōhanga、544" onChange={(e) => update({ q: e.target.value })} />
+          <label htmlFor="q">{t('机构名称或官方 ID', 'Name or official ID')}</label>
+          <input id="q" type="search" value={f.q} placeholder={t('例如 Takapuna、Kōhanga、544', 'e.g. Takapuna, Kōhanga, 544')} onChange={(e) => update({ q: e.target.value })} />
         </div>
         <div className="field">
-          <label htmlFor="group">业务分组</label>
+          <label htmlFor="group">{t('业务分组', 'Area group')}</label>
           <select id="group" value={f.group} onChange={(e) => update({ group: e.target.value })}>
-            <option value="">不限</option>
-            {ds.overlays.groups.map((g) => <option key={g.id} value={g.id}>{g.name}（{g.members.length}）</option>)}
+            <option value="">{t('不限', 'Any')}</option>
+            {ds.overlays.groups.map((g) => <option key={g.id} value={g.id}>{g.name} ({g.members.length})</option>)}
           </select>
-          {group && <p className="hint">{group.approved ? '已批准' : '草案，待负责人批准'} · {group.definitionVersion}。{group.basis}</p>}
+          {group && <p className="hint">{group.approved ? t('已批准', 'Approved') : t('草案，待负责人批准', 'Draft, awaiting approval')} · {group.definitionVersion}. {group.basis}</p>}
         </div>
         <Select id="region" label="Region" value={f.region} options={opts.region} onChange={(v) => update({ region: v, district: '', suburb: '' })} />
-        <Select id="district" label="City／District" value={f.district} options={opts.district} disabledHint="先选择 Region" onChange={(v) => update({ district: v, suburb: '' })} />
-        <Select id="suburb" label="Suburb" value={f.suburb} options={opts.suburb} disabledHint="先选择 City／District" onChange={(v) => update({ suburb: v })} />
-        <Select id="type" label="机构类型" value={f.type} options={opts.type} onChange={(v) => update({ type: v })} />
+        <Select id="district" label="City／District" value={f.district} options={opts.district} disabledHint={t('先选择 Region', 'Choose a Region first')} onChange={(v) => update({ district: v, suburb: '' })} />
+        <Select id="suburb" label="Suburb" value={f.suburb} options={opts.suburb} disabledHint={t('先选择 City／District', 'Choose a City / District first')} onChange={(v) => update({ suburb: v })} />
+        <Select id="type" label={t('机构类型', 'Type')} value={f.type} options={opts.type} onChange={(v) => update({ type: v })} />
         <label className="check">
           <input type="checkbox" checked={f.missing} onChange={(e) => update({ missing: e.target.checked })} />
-          包含最新官方批次中缺失（待核实）的机构
+          {t('包含最新官方批次中缺失（待核实）的机构', 'Include institutions missing from the latest official batch (unverified)')}
         </label>
-        {active && <button className="btn ghost" onClick={() => setF({ ...DEFAULT_FILTERS, view: f.view })}>清除全部条件</button>}
+        {active && <button className="btn ghost" onClick={() => setF({ ...DEFAULT_FILTERS, view: f.view })}>{t('清除全部条件', 'Clear all filters')}</button>}
       </aside>
 
       <section className="results" aria-live="polite">
         <div className="toolbar">
-          <strong>{results.length.toLocaleString()} 家机构</strong>
-          <div className="seg small" role="tablist" aria-label="视图">
-            <button role="tab" aria-selected={f.view === 'list'} className={f.view === 'list' ? 'on' : ''} onClick={() => setF({ ...f, view: 'list' })}>列表</button>
-            <button role="tab" aria-selected={f.view === 'map'} className={f.view === 'map' ? 'on' : ''} onClick={() => setF({ ...f, view: 'map' })}>地图</button>
+          <strong>{t(`${results.length.toLocaleString()} 家机构`, `${results.length.toLocaleString()} institutions`)}</strong>
+          <div className="seg small" role="tablist" aria-label={t('视图', 'View')}>
+            <button role="tab" aria-selected={f.view === 'list'} className={f.view === 'list' ? 'on' : ''} onClick={() => setF({ ...f, view: 'list' })}>{t('列表', 'List')}</button>
+            <button role="tab" aria-selected={f.view === 'map'} className={f.view === 'map' ? 'on' : ''} onClick={() => setF({ ...f, view: 'map' })}>{t('地图', 'Map')}</button>
           </div>
           <label className="sort">
-            排序
+            {t('排序', 'Sort')}
             <select value={f.sort} onChange={(e) => update({ sort: e.target.value as Filters['sort'] })}>
-              <option value="name">名称</option>
+              <option value="name">{t('名称', 'Name')}</option>
               <option value="suburb">Suburb</option>
-              <option value="roll">在读人数</option>
+              <option value="roll">{t('在读人数', 'Roll')}</option>
             </select>
           </label>
-          <button className="btn" disabled={!results.length} onClick={() => downloadCsv(ds, results)}>导出 CSV</button>
+          <button className="btn" disabled={!results.length} onClick={() => downloadCsv(ds, results)}>{t('导出 CSV', 'Export CSV')}</button>
         </div>
 
         {!results.length ? (
           <div className="empty">
-            <p>没有符合条件的机构。</p>
-            {active && <button className="btn" onClick={() => setF({ ...DEFAULT_FILTERS, view: f.view })}>清除条件</button>}
+            <p>{t('没有符合条件的机构。', 'No institutions match these filters.')}</p>
+            {active && <button className="btn" onClick={() => setF({ ...DEFAULT_FILTERS, view: f.view })}>{t('清除条件', 'Clear filters')}</button>}
           </div>
         ) : f.view === 'map' ? (
           <MapView records={results} onOpen={open} />
@@ -112,23 +113,23 @@ export function SearchPage({ ds, f, setF, open }: Props) {
                   <a href={`#/i/${encodeURIComponent(r.key)}`} className="card">
                     <div className="card-top">
                       <span className={`tag ${r.cat}`}>{CAT_LABEL[r.cat]}</span>
-                      <span className="muted small">{r.type ?? '类型未提供'}</span>
-                      {r.sourceStatus === 'source_missing' && <span className="tag warn">来源缺失·待核实</span>}
+                      <span className="muted small">{r.type ?? t('类型未提供', 'Type not provided')}</span>
+                      {r.sourceStatus === 'source_missing' && <span className="tag warn">{t('来源缺失·待核实', 'Missing from source · unverified')}</span>}
                       {ds.overlays.enrichments[r.key]?.careers && <span className="tag ok">Careers</span>}
                     </div>
                     <h3>{r.name}</h3>
                     <p className="muted small">
-                      {[r.address, r.suburb, districtLabel(r), r.region].filter(Boolean).join(' · ') || '地址未提供'}
+                      {[r.address, r.suburb, districtLabel(r), r.region].filter(Boolean).join(' · ') || t('地址未提供', 'Address not provided')}
                     </p>
                   </a>
                 </li>
               ))}
             </ul>
             {pages > 1 && (
-              <nav className="pager" aria-label="分页">
-                <button className="btn ghost" disabled={page <= 1} onClick={() => setF({ ...f, page: page - 1 })}>上一页</button>
-                <span>第 {page} / {pages} 页</span>
-                <button className="btn ghost" disabled={page >= pages} onClick={() => setF({ ...f, page: page + 1 })}>下一页</button>
+              <nav className="pager" aria-label={t('分页', 'Pages')}>
+                <button className="btn ghost" disabled={page <= 1} onClick={() => setF({ ...f, page: page - 1 })}>{t('上一页', 'Previous')}</button>
+                <span>{t(`第 ${page} / ${pages} 页`, `Page ${page} of ${pages}`)}</span>
+                <button className="btn ghost" disabled={page >= pages} onClick={() => setF({ ...f, page: page + 1 })}>{t('下一页', 'Next')}</button>
               </nav>
             )}
           </>

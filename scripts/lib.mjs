@@ -178,6 +178,9 @@ export const normNzbn = (v) => {
  *  conflict  – several candidates at the best level
  *  (absent)  – no candidate found: shown as unknown, never as "not accredited"
  */
+/** Reasons are shown in the UI language, so each carries both. */
+const bi = (zh, en) => ({ zh, en });
+
 export function matchAewv({ institutions, employers, links, reviews }) {
   const byNzbn = new Map();
   const byName = new Map();
@@ -195,6 +198,7 @@ export function matchAewv({ institutions, employers, links, reviews }) {
       }
     }
   });
+  const brands = chainBrands(institutions, employers);
   const rejected = new Set(reviews.filter((r) => r.decision === 'rejected').map((r) => `${r.institution}|${empKey(r)}`));
   const confirmedReview = new Map(reviews.filter((r) => r.decision === 'confirmed').map((r) => [`${r.institution}|${empKey(r)}`, r]));
   const linksByInst = new Map();
@@ -209,11 +213,25 @@ export function matchAewv({ institutions, employers, links, reviews }) {
     for (const l of linksByInst.get(inst.key) ?? []) {
       const n = normNzbn(l.nzbn);
       const idx = n != null ? byNzbn.get(n) : undefined;
-      if (idx !== undefined) cands.push({ idx, level: 'high', reasons: [`已确认雇主关系（${l.relation || '未注明'}）`, `NZBN ${n} 出现在认证名单中`], link: l });
+      if (idx !== undefined) cands.push({ idx, level: 'high', reasons: [bi(`已确认雇主关系（${l.relation || '未注明'}）`, `Confirmed employer relationship (${l.relation || 'unspecified'})`), bi(`NZBN ${n} 出现在认证名单中`, `NZBN ${n} is on the accredited list`)], link: l });
     }
     if (!cands.length) {
       const exact = byName.get(normalize(inst.name));
-      if (exact) for (const idx of exact) cands.push({ idx, level: 'medium', reasons: ['规范化后的法律名称/商号与机构名称一致', '尚未确认机构与该雇主（NZBN）的对应关系，需人工复核'] });
+      if (exact) for (const idx of exact) cands.push({ idx, level: 'medium', reasons: [bi('规范化后的法律名称/商号与机构名称一致', 'Legal or trading name matches the institution name'), bi('尚未确认机构与该雇主（NZBN）的对应关系，需人工复核', 'The link between this institution and the employer (NZBN) is not yet confirmed; needs manual review')] });
+    }
+    if (!cands.length && inst.cat === 'ece') {
+      const it = normalize(inst.name).split(' ');
+      for (let n = Math.min(3, it.length - 1); n >= 1; n--) {
+        const b = brands.get(it.slice(0, n).join(' '));
+        if (!b) continue;
+        for (const idx of b.employers) {
+          cands.push({ idx, level: 'medium', reasons: [
+            bi(`机构名称以认证雇主的品牌名“${b.label}”开头（全国共 ${b.count} 家同品牌机构）`, `Name starts with the accredited employer's brand "${b.label}" (${b.count} centres with this brand nationwide)`),
+            bi('连锁机构的分店通常由品牌公司雇佣，但也可能由加盟方等其他法人运营，需人工复核', 'Chain branches are usually employed by the brand company, but some are run by franchisees or other entities; needs manual review'),
+          ] });
+        }
+        break;
+      }
     }
     if (!cands.length) {
       const pool = new Set();
@@ -225,7 +243,7 @@ export function matchAewv({ institutions, employers, links, reviews }) {
       for (const idx of pool) {
         const e = employers[idx];
         const score = Math.max(jaccard(it, scoreTokens(e.legal_name)), jaccard(it, scoreTokens(e.trading_name)));
-        if (score >= 0.75) cands.push({ idx, level: 'low', reasons: [`名称相似（相似度 ${score.toFixed(2)}），仅为候选`] });
+        if (score >= 0.75) cands.push({ idx, level: 'low', reasons: [bi(`名称相似（相似度 ${score.toFixed(2)}），仅为候选`, `Similar name (similarity ${score.toFixed(2)}), candidate only`)] });
       }
     }
     const kept = cands.filter((c) => !rejected.has(`${inst.key}|${empKey(employers[c.idx])}`));
@@ -240,10 +258,10 @@ export function matchAewv({ institutions, employers, links, reviews }) {
       const extra = [];
       if (e.city && inst.city) {
         extra.push(normalize(e.city) === normalize(inst.city)
-          ? `雇主登记城市（${e.city}）与机构所在城市一致`
-          : `注意：雇主登记城市为 ${e.city}，机构位于 ${inst.city}`);
+          ? bi(`雇主登记城市（${e.city}）与机构所在城市一致`, `Employer's registered city (${e.city}) matches the institution's city`)
+          : bi(`注意：雇主登记城市为 ${e.city}，机构位于 ${inst.city}`, `Note: employer registered in ${e.city}, institution is in ${inst.city}`));
       }
-      if (e.sector) extra.push(`雇主行业：${e.sector}`);
+      if (e.sector) extra.push(bi(`雇主行业：${e.sector}`, `Employer industry: ${e.sector}`));
       return {
         employer: e.legal_name || e.trading_name,
         tradingName: e.trading_name || null,
@@ -262,6 +280,53 @@ export function matchAewv({ institutions, employers, links, reviews }) {
       : { level: best, candidates: [describe(uniq[0])] };
   }
   return result;
+}
+
+// Trailing words that describe the business type, not the brand: "Kindercare Learning Centres Limited" → "kindercare".
+const BRAND_SUFFIX = new Set([...LEGAL, 'learning', 'centre', 'centres', 'center', 'centers', 'educare', 'early', 'childhood', 'education',
+  'kindergarten', 'kindergartens', 'preschool', 'preschools', 'childcare', 'care', 'group', 'new', 'zealand', 'aotearoa', 'services']);
+const ECE_WORDS = new Set(['learning', 'centre', 'centres', 'center', 'centers', 'educare', 'early', 'childhood', 'kindergarten', 'kindergartens', 'preschool', 'preschools', 'childcare', 'montessori', 'kindy', 'nursery']);
+// Generic words that cannot be a brand on their own.
+const BRAND_GENERIC = new Set([...STOP, 'little', 'kids', 'kidz', 'tiny', 'happy', 'small', 'st', 'saint', 'mt', 'home', 'based', 'montessori', 'play', 'playcentre', 'kohanga', 'reo', 'puna']);
+
+/**
+ * ECE chains list each centre as "<brand> <suburb>" while INZ lists the company ("Kindercare Learning Centres Limited").
+ * A brand qualifies only if it prefixes at least two ECE names, is not made of place names or generic words, and is
+ * long enough to be distinctive — so "Ruawai …" (a place) never matches "Ruawai College Board".
+ */
+function chainBrands(institutions, employers) {
+  const places = new Set();
+  for (const r of institutions) for (const v of [r.suburb, r.city, r.district, r.region]) for (const t of normalize(v).split(' ')) if (t) places.add(t);
+  const prefixCount = new Map(); // "<first n words>" of ECE names (strict prefixes only) → number of centres
+  for (const r of institutions) {
+    if (r.cat !== 'ece') continue;
+    const t = normalize(r.name).split(' ');
+    for (let n = 1; n <= Math.min(3, t.length - 1); n++) {
+      const p = t.slice(0, n).join(' ');
+      prefixCount.set(p, (prefixCount.get(p) ?? 0) + 1);
+    }
+  }
+  const out = new Map();
+  employers.forEach((e, idx) => {
+    // Childcare sits under ANZSIC "Social Assistance" (e.g. BestStart), schools under "Education and Training".
+    if (e.industry && !/education|child|social assistance|preschool/i.test(e.industry)) return;
+    for (const name of [e.legal_name, e.trading_name]) {
+      const all = normalize(name).split(' ').filter(Boolean);
+      const t = [...all];
+      while (t.length && BRAND_SUFFIX.has(t[t.length - 1])) t.pop();
+      if (!t.length || t.length > 3 || t.join('').length < 6) continue;
+      if (t.every((w) => places.has(w) || BRAND_GENERIC.has(w))) continue;
+      const brand = t.join(' ');
+      const count = prefixCount.get(brand) ?? 0;
+      if (count < 2) continue;
+      // One-word brands ("Bright", "Capital") are often ordinary words: require an ECE word in the employer name or a big chain.
+      if (t.length === 1 && count < 10 && !all.some((w) => ECE_WORDS.has(w))) continue;
+      const b = out.get(brand) ?? { label: brand, employers: new Set(), count };
+      b.employers.add(idx);
+      out.set(brand, b);
+    }
+  });
+  return out;
 }
 
 function empKey(e) {
@@ -288,4 +353,44 @@ export function matchJobs(jobs, institutions) {
     if (c.length > 1) c = c.filter((r) => sameRegion(j.region, r.region));
     return c.length === 1 ? c[0].key : null;
   });
+}
+
+// ---- Visa / work-eligibility statements in vacancy text ----
+// Only these short sentences are kept from an advertisement; the rest of the ad is not stored.
+
+const VISA_RULES = [
+  ['no_overseas', /(overseas|offshore|international)\s+(applicants|applications|candidates)\b[^.]{0,80}\b(not|won'?t|cannot|can'?t|unable|ineligible)\b|\b(not|unable to|cannot|can'?t|won'?t)\b[^.]{0,40}\b(accept|consider)\w*\b[^.]{0,40}\b(overseas|offshore)|\bmust\s+(already\s+)?(be\s+)?(currently\s+)?(living|based|residing|resident|located)\s+in\s+(new zealand|nz|aotearoa)|\bno\s+(visa\s+)?sponsorship|\b(unable|not able|cannot|can'?t|do not|don'?t|will not|won'?t|not in a position)\b[^.]{0,40}\b(sponsor|support)\w*\b[^.]{0,30}\bvisa|\bnot\s+(currently\s+)?(an\s+)?accredited\s+employer|\bnot\s+eligible\s+for\b[^.]{0,30}\b(sponsor\w*|aewv|visa)|\b(requir\w*|need\w*)\s+(a\s+)?(work\s+)?visa\s+sponsorship\b[^.]{0,40}\b(not|won'?t)\b|\bnot\s+(currently\s+)?(offer|provid)\w*\s+[^.]{0,20}\bsponsorship|\bnot\s+(looking|seeking|accepting|considering)\s+(for\s+)?[^.]{0,20}\b(overseas|offshore|international)|\bno\s+overseas\b|(residents?|citizens?|residency)\s+only\b|\bonly\s+(open\s+to\s+)?(nz|new zealand)\s+(citizens?|residents?)/i],
+  ['sponsor', /\baewv\b|\baccredited\s+employer\b|\b(visa\s+)?sponsorship\s+(is\s+|may\s+be\s+)?(available|offered|considered|provided)|\b(will|can|could|able to|happy to|may)\s+(support|sponsor|assist\s+with)\b[^.]{0,40}\bvisa|\bsupport\s+(a\s+|your\s+|the\s+)?(work\s+)?visa/i],
+  ['residency', /\b(nz|new zealand)\s+(citizen|citizenship|resident|residence|residency|permanent\s+resident)|\bresidency\b|\b(valid|current|appropriate)\s+(nz\s+|new zealand\s+)?(work|working\s+)?\s*visa|\b(nz|new zealand)\s+work\s+visa|\b(eligible|entitled|legally entitled|right)\s+to\s+work\s+in\s+(nz|new zealand|aotearoa)|\bwork\s+rights\b/i],
+  ['other', /\bvisa\b|\bimmigration\b|\boverseas\s+(applicants|candidates|teachers)/i],
+];
+
+const decodeEntities = (s) => s
+  .replace(/&nbsp;|&#160;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+  .replace(/&quot;/g, '"').replace(/&#0?39;|&apos;|&rsquo;|&#8217;/g, "'").replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)));
+
+/** Plain text of the "About the role" block of a Gazette vacancy page (paragraphs/list items → lines). */
+export function gazetteDescription(html) {
+  const m = html.match(/<div class="vd-description">([\s\S]*?)<\/div>/);
+  if (!m) return null;
+  return decodeEntities(m[1].replace(/<\/(p|li|h\d)>|<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ' '))
+    .split('\n').map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n');
+}
+
+/** Sentences about visas / residency / overseas applicants, each tagged with the strongest matching kind. */
+export function extractVisa(text) {
+  if (!text) return [];
+  const out = [];
+  const seen = new Set();
+  for (const line of text.split('\n')) {
+    for (const raw of line.split(/(?<=[.!?])\s+(?=[A-Z(])/)) {
+      const s = raw.trim();
+      const rule = VISA_RULES.find(([, re]) => re.test(s));
+      if (!rule || seen.has(s)) continue;
+      seen.add(s);
+      out.push({ kind: rule[0], text: s.length > 300 ? `${s.slice(0, 297)}…` : s });
+      if (out.length >= 5) return out;
+    }
+  }
+  return out;
 }
