@@ -121,6 +121,8 @@ select:disabled { opacity: 0.55; }
 .card.job .tag.warn { margin-left: 6px; }
 .aewv-line { margin-top: auto; padding-top: 6px; border-top: 1px dashed var(--border); }
 .source-line { margin: -4px 0 12px; }
+.apply { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.apply .btn { font-weight: 600; }
 
 .tag { display: inline-block; font-size: 0.74rem; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--bg); color: var(--muted); border: 1px solid var(--border); }
 .tag.school { background: color-mix(in srgb, var(--school) 14%, transparent); color: var(--school); border-color: transparent; }

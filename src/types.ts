@@ -102,6 +102,8 @@ export interface Job {
   sectors: string[];
   roles: string[];
   positions: string[];
+  learning: string[];
+  allowances: string | null;
   beginning: boolean;
   closing: string;
   closingTime: string | null;

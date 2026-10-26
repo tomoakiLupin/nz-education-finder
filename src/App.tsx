@@ -5,10 +5,11 @@ import { filtersFromQuery, filtersToQuery, type Filters } from './filters';
 import { SearchPage } from './components/SearchPage';
 import { DetailPage } from './components/DetailPage';
 import { AboutPage } from './components/AboutPage';
+import { JobDetailPage } from './components/JobDetailPage';
 import { JobsPage, jobFiltersFromQuery, jobFiltersToQuery, type JobFilters } from './components/JobsPage';
 import { fmtDate } from './format';
 
-// Hash routes: #/?<job filters>  ·  #/schools?<filters>  ·  #/i/<key>  ·  #/about
+// Hash routes: #/?<job filters>  ·  #/j/<gazette id>  ·  #/schools?<filters>  ·  #/i/<key>  ·  #/about
 function parseHash() {
   const h = location.hash.replace(/^#/, '') || '/';
   const [path, qs = ''] = h.split('?');
@@ -28,7 +29,7 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    if (route.path.startsWith('/i/')) window.scrollTo(0, 0);
+    if (route.path.startsWith('/i/') || route.path.startsWith('/j/')) window.scrollTo(0, 0);
   }, [route.path]);
 
   // Typing in a search box should not flood history.
@@ -56,6 +57,9 @@ export function App() {
   else if (route.path.startsWith('/i/')) {
     const r = ds.byKey.get(decodeURIComponent(route.path.slice(3)));
     body = r ? <DetailPage ds={ds} r={r} /> : <div className="empty"><p>未找到该机构。</p><a className="btn" href="#/schools">返回目录</a></div>;
+  } else if (route.path.startsWith('/j/')) {
+    const j = ds.jobs.jobs.find((x) => String(x.id) === route.path.slice(3));
+    body = j ? <JobDetailPage ds={ds} j={j} /> : <div className="empty"><p>该职位已截止或已下架。</p><a className="btn" href="#/">查看在招职位</a></div>;
   } else if (route.path === '/schools') body = <SearchPage ds={ds} f={filters} setF={setFilters} open={open} />;
   else body = <JobsPage ds={ds} f={jobFilters} setF={setJobFilters} />;
 

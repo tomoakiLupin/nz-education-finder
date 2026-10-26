@@ -30,6 +30,8 @@ async function main() {
       sectors: j.sectors ?? [],
       roles: j.roles ?? [],
       positions: j.positions ?? [],
+      learning: j.learning ?? [],
+      allowances: j.allowances ?? null,
       beginning: Boolean(j.beginning),
       closing: j.closing.iso,
       closingTime: j.closingTime ?? null,

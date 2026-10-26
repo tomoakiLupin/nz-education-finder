@@ -45,7 +45,7 @@ export function jobFiltersToQuery(f: JobFilters): string {
 }
 
 const nzToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Pacific/Auckland' }).format(new Date());
-const daysLeft = (iso: string) => Math.round((Date.parse(iso) - Date.parse(nzToday())) / 86_400_000);
+export const daysLeft = (iso: string) => Math.round((Date.parse(iso) - Date.parse(nzToday())) / 86_400_000);
 const nzHour = () => Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Pacific/Auckland', hour: 'numeric', minute: 'numeric', hour12: false }).format(new Date()).replace(':', '.'));
 /** Gazette closing times are free text ("4pm", "3:00 pm", "12 noon"); unparseable ones count as end of day. */
 export function closed(j: Job): boolean {
@@ -128,7 +128,7 @@ export function JobCard({ ds, j, isNew }: { ds: Dataset; j: Job; isNew?: boolean
         {j.roles.slice(0, 2).map((x) => <span key={x} className="muted small">{x}</span>)}
         {j.beginning && <span className="tag ok">适合新教师</span>}
       </div>
-      <h3><a href={safeHref(j.url)} target="_blank" rel="noopener noreferrer">{j.title} ↗</a></h3>
+      <h3><a href={`#/j/${j.id}`}>{j.title}</a></h3>
       <p className="small">
         {r ? <a href={`#/i/${encodeURIComponent(r.key)}`}>{j.institute}</a> : j.institute}
         <span className="muted"> · {r ? [r.suburb, r.city].filter(Boolean).join(', ') || j.region : j.region}</span>
@@ -282,7 +282,7 @@ export function JobsPage({ ds, f, setF }: Props) {
         </div>
         <p className="hint source-line">
           职位来自 <a href={safeHref(src.url)} target="_blank" rel="noopener noreferrer">Education Gazette</a>（Ministry of Education），
-          本站于 {fmtDate(src.fetchedAt, true)} 获取，每小时检查更新。点职位标题查看原文并申请。
+          本站于 {fmtDate(src.fetchedAt, true)} 获取，每小时检查更新。点职位标题查看详情、学校位置和认证情况。
           SEEK、Trade Me 的职位看到学校名后，可在 <a href="#/schools">机构目录</a> 搜索该学校查看认证情况。
         </p>
         <OtherSites />

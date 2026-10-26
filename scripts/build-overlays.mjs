@@ -88,6 +88,7 @@ async function buildJobs(records) {
   return { source, jobs: open.map((j, i) => ({ ...j, key: keys[i] })) };
 }
 
+const SITE_URL = (process.env.SITE_URL ?? '').replace(/\/?$/, '/').replace(/^\/$/, '');
 const LEVEL_TEXT = { high: '高可信', medium: '中可信', low: '低可信·待核实', conflict: '多个候选·待核实' };
 const xml = (v) => String(v ?? '').replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' })[c]);
 
@@ -104,7 +105,7 @@ function atomFeed({ id, title, jobs, matches, records, fetchedAt }) {
     const place = r ? [r.suburb, r.city].filter(Boolean).join(', ') : j.region;
     const summary = `${j.institute} · ${place ?? ''} · ${j.positions.join(' / ')} · 截止 ${j.closing}${j.closingTime ? ` ${j.closingTime}` : ''} · ${aewv}`;
     return `<entry><id>tag:nz-education-finder,2026:gazette-${j.id}</id><title>${xml(`${j.title} — ${j.institute}`)}</title>` +
-      `<link href="${xml(j.url)}"/><updated>${fetchedAt}</updated><summary>${xml(summary)}</summary>` +
+      `<link href="${xml(SITE_URL ? `${SITE_URL}#/j/${j.id}` : j.url)}"/><updated>${fetchedAt}</updated><summary>${xml(summary)}</summary>` +
       j.roles.map((x) => `<category term="${xml(x)}"/>`).join('') + (j.region ? `<category term="${xml(j.region)}"/>` : '') + '</entry>';
   });
   return `<?xml version="1.0" encoding="utf-8"?>

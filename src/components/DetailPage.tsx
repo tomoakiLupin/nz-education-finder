@@ -7,18 +7,18 @@ import { careersOf, websiteOf } from '../data';
 import { MiniMap } from './MapView';
 import { JobCard, closed } from './JobsPage';
 
-function Ext({ href, children }: { href: string | null | undefined; children: React.ReactNode }) {
+export function Ext({ href, children }: { href: string | null | undefined; children: React.ReactNode }) {
   const h = safeHref(href);
   return h ? <a href={h} target="_blank" rel="noopener noreferrer nofollow">{children}</a> : <span className="muted">链接无效</span>;
 }
 
-function Stale({ date }: { date: string | null }) {
+export function Stale({ date }: { date: string | null }) {
   const d = daysSince(date);
   if (d === null) return <span className="tag warn">核实日期未知</span>;
   return d > STALE_DAYS ? <span className="tag warn">{d} 天未核实，资料可能过期</span> : null;
 }
 
-function Aewv({ ds, r }: { ds: Dataset; r: Institution }) {
+export function Aewv({ ds, r }: { ds: Dataset; r: Institution }) {
   const m = ds.overlays.aewv.matches[r.key];
   const src = ds.overlays.aewv.source;
   return (
@@ -75,8 +75,8 @@ function OpenJobs({ ds, r }: { ds: Dataset; r: Institution }) {
   );
 }
 
-function JobSearch({ r }: { r: Institution }) {
-  const keywords = [r.name, `${r.name} teacher`, `${r.cat === 'ece' ? 'early childhood teacher' : 'teacher'} ${r.suburb ?? r.city ?? ''}`.trim()];
+export function JobSearch({ r, title }: { r: Pick<Institution, 'name' | 'cat' | 'suburb' | 'city'>; title?: string }) {
+  const keywords = [...(title ? [`${title} ${r.name}`] : []), r.name, `${r.name} teacher`, `${r.cat === 'ece' ? 'early childhood teacher' : 'teacher'} ${r.suburb ?? r.city ?? ''}`.trim()];
   const [copied, setCopied] = useState<string | null>(null);
   const copy = async (k: string) => {
     try { await navigator.clipboard.writeText(k); setCopied(k); setTimeout(() => setCopied(null), 1500); } catch { /* clipboard blocked; text remains selectable */ }
@@ -99,7 +99,7 @@ function JobSearch({ r }: { r: Institution }) {
   );
 }
 
-function Row({ k, children }: { k: string; children: React.ReactNode }) {
+export function Row({ k, children }: { k: string; children: React.ReactNode }) {
   return <><dt>{k}</dt><dd>{children ?? <span className="muted">未提供</span>}</dd></>;
 }
 

@@ -56,12 +56,15 @@ jobs:
       - run: node scripts/fetch-aewv.mjs
       # Current Education Gazette vacancies (listing facts only); failure stops the deploy, live site keeps last build.
       - run: node scripts/fetch-jobs.mjs
-      # Builds enrichments / geo groups / AEWV matches; fails (and blocks publishing) on invalid admin data.
+      - id: pages
+        uses: actions/configure-pages@v5
+      # Builds enrichments / geo groups / AEWV matches / jobs + feeds; fails (and blocks publishing) on invalid admin data.
       - run: node scripts/build-overlays.mjs
+        env:
+          SITE_URL: ${{ steps.pages.outputs.base_url }}
       - run: npm run build
         env:
           VITE_REPO_URL: ${{ github.server_url }}/${{ github.repository }}
-      - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
