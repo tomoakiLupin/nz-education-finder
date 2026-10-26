@@ -174,3 +174,12 @@ th { color: var(--muted); font-weight: 600; }
   .seg button { padding: 6px 4px; }
   main { padding-top: 14px; }
 }
+
+.tag.new { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.chip.on { background: var(--accent); color: var(--accent-ink); }
+.alerts { border-top: 1px solid var(--border); padding-top: 12px; }
+.alerts h2, .other-sites h2 { font-size: 0.95rem; }
+.alerts ul, .site-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 0.88rem; }
+.alerts .chip { font-size: 0.76rem; padding: 2px 8px; }
+.other-sites { margin-bottom: 12px; padding: 12px 14px; }
+.site-list a { font-weight: 600; }

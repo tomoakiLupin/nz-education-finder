@@ -8,6 +8,7 @@ private/
 raw/
 public/data/overlays.json
 public/data/jobs.json
+public/data/feed*.xml
 *.tsbuildinfo
 
 # AEWV snapshot: licence NOASSERTION, fetched at deploy time, never committed

@@ -46,6 +46,8 @@
 
 `scripts/fetch-jobs.mjs` 读取 Education Gazette 职位页自己使用的 `https://gazette.education.govt.nz/vacancies/data.json`（约 1,300 条），校验后只保留职位事实（标题、学校、地区、类别、截止日期、原文链接），**不保存、不转载广告正文**；输出不提交到仓库。`build-overlays.mjs` 按名称（完全一致，同名用地区区分）把职位关联到官方机构，约 98% 能唯一对应。
 
+**新职位提醒**：构建时生成两个 Atom 订阅源——`data/feed.xml`（最新 150 个职位）和 `data/feed-aewv.xml`（仅雇主有 AEWV 认证候选的职位），用 Feedly、Inoreader、Outlook 等订阅即可收到新职位通知。职位页还会标出“自上次访问新增”的职位（记录在本浏览器中）。
+
 未接入的平台：
 - **SEEK**：使用条款禁止机器人、抓取、聚合以及在其他网站转载其内容，只有授权 API 例外（面向招聘系统合作方）。
 - **Trade Me Jobs**：API 需注册并获批准，条款不允许保存或再提供数据、每次使用都须重新调用 API，与静态站点不兼容。若要接入需先向 Trade Me（api-jobs@trademe.co.nz）申请。

@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Dataset, Job } from '../types';
 import { LEVEL } from '../aewv';
 import { CAT_LABEL, fmtDate, normalize, safeHref } from '../format';
+import { JOB_SITES } from '../config';
 
 const PAGE_SIZE = 40;
 
@@ -13,11 +14,12 @@ export interface JobFilters {
   position: string;
   aewv: '' | 'any' | 'strong'; // any candidate · medium/high only
   beginning: boolean;
+  fresh: boolean; // only listings added since the previous visit
   sort: 'closing' | 'latest';
   page: number;
 }
 
-export const DEFAULT_JOB_FILTERS: JobFilters = { q: '', region: '', sector: '', role: '', position: '', aewv: '', beginning: false, sort: 'closing', page: 1 };
+export const DEFAULT_JOB_FILTERS: JobFilters = { q: '', region: '', sector: '', role: '', position: '', aewv: '', beginning: false, fresh: false, sort: 'closing', page: 1 };
 
 export function jobFiltersFromQuery(qs: string): JobFilters {
   const p = new URLSearchParams(qs);
@@ -26,6 +28,7 @@ export function jobFiltersFromQuery(qs: string): JobFilters {
   const a = p.get('aewv');
   if (a === 'any' || a === 'strong') f.aewv = a;
   f.beginning = p.get('beginning') === '1';
+  f.fresh = p.get('fresh') === '1';
   if (p.get('sort') === 'latest') f.sort = 'latest';
   f.page = Math.max(1, Number(p.get('page')) || 1);
   return f;
@@ -60,9 +63,32 @@ type Facet = 'region' | 'sector' | 'role' | 'position';
 const facetValues = (j: Job, k: Facet): string[] =>
   k === 'region' ? (j.region ? [j.region] : []) : k === 'sector' ? j.sectors : k === 'role' ? j.roles : j.positions;
 
-function keep(ds: Dataset, j: Job, f: JobFilters, tokens: string[], skip?: Facet): boolean {
+/**
+ * "New since last visit": Gazette ids grow with each listing, so remembering the highest id seen is enough.
+ * The baseline is pinned for the browser session so a reload doesn't clear the markers. Per-browser only.
+ */
+function useSeenBaseline(jobs: Job[]): number | null {
+  const [baseline, setBaseline] = useState<number | null>(null);
+  useEffect(() => {
+    if (!jobs.length) return;
+    const max = Math.max(...jobs.map((j) => j.id));
+    try {
+      let b = sessionStorage.getItem('jobs.baseline');
+      if (b === null) {
+        b = localStorage.getItem('jobs.seenMax') ?? '';
+        sessionStorage.setItem('jobs.baseline', b);
+      }
+      localStorage.setItem('jobs.seenMax', String(Math.max(max, Number(b) || 0)));
+      setBaseline(b ? Number(b) : null);
+    } catch { /* storage blocked: no "new" markers */ }
+  }, [jobs]);
+  return baseline;
+}
+
+function keep(ds: Dataset, j: Job, f: JobFilters, tokens: string[], skip?: Facet, baseline?: number | null): boolean {
   for (const k of ['region', 'sector', 'role', 'position'] as const) if (k !== skip && f[k] && !facetValues(j, k).includes(f[k])) return false;
   if (f.beginning && !j.beginning) return false;
+  if (f.fresh && (baseline == null || j.id <= baseline)) return false;
   if (f.aewv) {
     const m = j.key ? ds.overlays.aewv.matches[j.key] : undefined;
     if (!m || (f.aewv === 'strong' && m.level !== 'high' && m.level !== 'medium')) return false;
@@ -91,12 +117,13 @@ function JobAewv({ ds, j }: { ds: Dataset; j: Job }) {
   );
 }
 
-export function JobCard({ ds, j }: { ds: Dataset; j: Job }) {
+export function JobCard({ ds, j, isNew }: { ds: Dataset; j: Job; isNew?: boolean }) {
   const r = j.key ? ds.byKey.get(j.key) : undefined;
   const left = daysLeft(j.closing);
   return (
     <div className="card job">
       <div className="card-top">
+        {isNew && <span className="tag new">新</span>}
         {r && <span className={`tag ${r.cat}`}>{CAT_LABEL[r.cat]}</span>}
         {j.roles.slice(0, 2).map((x) => <span key={x} className="muted small">{x}</span>)}
         {j.beginning && <span className="tag ok">适合新教师</span>}
@@ -115,25 +142,79 @@ export function JobCard({ ds, j }: { ds: Dataset; j: Job }) {
   );
 }
 
+const ALERT_HOWTO: Record<string, string> = {
+  gazette: '在职位列表页设置条件后订阅邮件提醒',
+  seek: '搜索后点 Save search，新职位发邮件／App 推送',
+  trademe: '搜索后点 Save this search，新职位发邮件／App 推送',
+};
+
+function Alerts() {
+  const [copied, setCopied] = useState<string | null>(null);
+  const feeds = [
+    { id: 'all', file: 'data/feed.xml', label: '全部新职位' },
+    { id: 'aewv', file: 'data/feed-aewv.xml', label: '仅雇主有 AEWV 候选' },
+  ];
+  const copy = async (id: string, url: string) => {
+    try { await navigator.clipboard.writeText(url); setCopied(id); setTimeout(() => setCopied(null), 1500); } catch { /* clipboard blocked; link stays clickable */ }
+  };
+  return (
+    <div className="alerts">
+      <h2>新职位提醒</h2>
+      <p className="hint">用 Feedly、Inoreader、Outlook 等阅读器订阅下面的地址。本站每小时更新，有新职位时由阅读器通知你。</p>
+      <ul>
+        {feeds.map((x) => {
+          const url = new URL(x.file, document.baseURI).href;
+          return (
+            <li key={x.id}>
+              <a href={url} target="_blank" rel="noopener noreferrer">{x.label}</a>{' '}
+              <button className="chip" onClick={() => copy(x.id, url)}>{copied === x.id ? '已复制 ✓' : '复制订阅地址'}</button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function OtherSites() {
+  return (
+    <div className="panel other-sites">
+      <h2>其他招聘网站</h2>
+      <p className="hint">SEEK 和 Trade Me 不允许第三方网站抓取或转载职位，本站无法代为监控。可在各网站开启职位提醒，看到学校名后回本站“机构目录”查认证情况。</p>
+      <ul className="site-list">
+        {JOB_SITES.map((s) => (
+          <li key={s.id}>
+            <a href={safeHref(s.entry)} target="_blank" rel="noopener noreferrer nofollow">{s.name} ↗</a>
+            <span className="small muted"> · {ALERT_HOWTO[s.id]}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 interface Props { ds: Dataset; f: JobFilters; setF: (f: JobFilters) => void }
 
 export function JobsPage({ ds, f, setF }: Props) {
   const update = (patch: Partial<JobFilters>) => setF({ ...f, ...patch, page: patch.page ?? 1 });
   const tokens = useMemo(() => normalize(f.q).split(' ').filter(Boolean), [f.q]);
+  const baseline = useSeenBaseline(ds.jobs.jobs);
+  const isNew = (j: Job) => baseline != null && j.id > baseline;
+  const freshCount = useMemo(() => ds.jobs.jobs.filter((j) => isNew(j) && !closed(j)).length, [ds, baseline]);
   const results = useMemo(() => {
-    const out = ds.jobs.jobs.filter((j) => keep(ds, j, f, tokens));
+    const out = ds.jobs.jobs.filter((j) => keep(ds, j, f, tokens, undefined, baseline));
     return f.sort === 'latest' ? out.sort((a, b) => b.id - a.id) : out.sort((a, b) => a.closing.localeCompare(b.closing) || b.id - a.id);
-  }, [ds, f, tokens]);
+  }, [ds, f, tokens, baseline]);
   // Facet counts respect every other active filter, so options never lead to an empty list.
   const opts = useMemo(() => {
     const o = {} as Record<Facet, [string, number][]>;
     for (const k of ['region', 'sector', 'role', 'position'] as const) {
       const c = new Map<string, number>();
-      for (const j of ds.jobs.jobs) if (keep(ds, j, f, tokens, k)) for (const v of facetValues(j, k)) c.set(v, (c.get(v) ?? 0) + 1);
+      for (const j of ds.jobs.jobs) if (keep(ds, j, f, tokens, k, baseline)) for (const v of facetValues(j, k)) c.set(v, (c.get(v) ?? 0) + 1);
       o[k] = [...c].sort((a, b) => b[1] - a[1]);
     }
     return o;
-  }, [ds, f, tokens]);
+  }, [ds, f, tokens, baseline]);
   const withAewv = useMemo(() => results.filter((j) => j.key && ds.overlays.aewv.matches[j.key]).length, [ds, results]);
 
   const pages = Math.max(1, Math.ceil(results.length / PAGE_SIZE));
@@ -180,11 +261,17 @@ export function JobsPage({ ds, f, setF }: Props) {
           只看适合新教师（beginning teachers）的职位
         </label>
         {active && <button className="btn ghost" onClick={() => setF({ ...DEFAULT_JOB_FILTERS, sort: f.sort })}>清除全部条件</button>}
+        <Alerts />
       </aside>
 
       <section className="results" aria-live="polite">
         <div className="toolbar">
           <strong>{results.length.toLocaleString()} 个在招职位<span className="muted small">（其中 {withAewv} 个雇主有 AEWV 认证候选）</span></strong>
+          {baseline != null && (
+            <button className={`chip${f.fresh ? ' on' : ''}`} onClick={() => update({ fresh: !f.fresh })} title="与你上次在本浏览器访问时相比">
+              {f.fresh ? '显示全部职位' : `自上次访问新增 ${freshCount} 个`}
+            </button>
+          )}
           <label className="sort">
             排序
             <select value={f.sort} onChange={(e) => update({ sort: e.target.value as JobFilters['sort'] })}>
@@ -198,6 +285,7 @@ export function JobsPage({ ds, f, setF }: Props) {
           本站于 {fmtDate(src.fetchedAt, true)} 获取，每小时检查更新。点职位标题查看原文并申请。
           SEEK、Trade Me 的职位看到学校名后，可在 <a href="#/schools">机构目录</a> 搜索该学校查看认证情况。
         </p>
+        <OtherSites />
 
         {!results.length ? (
           <div className="empty">
@@ -207,7 +295,7 @@ export function JobsPage({ ds, f, setF }: Props) {
         ) : (
           <>
             <ul className="cards jobs">
-              {slice.map((j) => <li key={j.id}><JobCard ds={ds} j={j} /></li>)}
+              {slice.map((j) => <li key={j.id}><JobCard ds={ds} j={j} isNew={isNew(j)} /></li>)}
             </ul>
             {pages > 1 && (
               <nav className="pager" aria-label="分页">

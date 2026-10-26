@@ -88,6 +88,32 @@ async function buildJobs(records) {
   return { source, jobs: open.map((j, i) => ({ ...j, key: keys[i] })) };
 }
 
+const LEVEL_TEXT = { high: '高可信', medium: '中可信', low: '低可信·待核实', conflict: '多个候选·待核实' };
+const xml = (v) => String(v ?? '').replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' })[c]);
+
+/**
+ * Atom feed of the newest vacancies, so feed readers (Feedly, Inoreader, Outlook…) can notify about new jobs.
+ * Gazette ids increase with each listing, so "newest" = highest id. Entry ids are stable across builds.
+ */
+function atomFeed({ id, title, jobs, matches, records, fetchedAt }) {
+  const byKey = new Map(records.map((r) => [r.key, r]));
+  const entries = [...jobs].sort((a, b) => b.id - a.id).slice(0, 150).map((j) => {
+    const r = j.key && byKey.get(j.key);
+    const m = j.key && matches[j.key];
+    const aewv = m ? `AEWV ${LEVEL_TEXT[m.level]}：${m.candidates[0].employer}${m.candidates[0].expiry ? `（有效至 ${m.candidates[0].expiry}）` : ''}` : 'AEWV 未知';
+    const place = r ? [r.suburb, r.city].filter(Boolean).join(', ') : j.region;
+    const summary = `${j.institute} · ${place ?? ''} · ${j.positions.join(' / ')} · 截止 ${j.closing}${j.closingTime ? ` ${j.closingTime}` : ''} · ${aewv}`;
+    return `<entry><id>tag:nz-education-finder,2026:gazette-${j.id}</id><title>${xml(`${j.title} — ${j.institute}`)}</title>` +
+      `<link href="${xml(j.url)}"/><updated>${fetchedAt}</updated><summary>${xml(summary)}</summary>` +
+      j.roles.map((x) => `<category term="${xml(x)}"/>`).join('') + (j.region ? `<category term="${xml(j.region)}"/>` : '') + '</entry>';
+  });
+  return `<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>${xml(title)}</title>` +
+    `<id>tag:nz-education-finder,2026:${id}</id><updated>${fetchedAt}</updated>` +
+    `<link href="https://gazette.education.govt.nz/vacancies/"/><author><name>NZ Education Finder</name></author>${entries.join('')}</feed>
+`;
+}
+
 async function main() {
   const { records } = await readJson(new URL('institutions.json', OUT));
   const known = new Set(records.map((r) => r.key));
@@ -109,6 +135,11 @@ async function main() {
   await writeFile(new URL('overlays.json', OUT), JSON.stringify(overlays));
   const jobs = await buildJobs(records);
   await writeFile(new URL('jobs.json', OUT), JSON.stringify(jobs));
+  if (jobs.source) {
+    const common = { matches, records, fetchedAt: jobs.source.fetchedAt };
+    await writeFile(new URL('feed.xml', OUT), atomFeed({ ...common, id: 'gazette-all', title: 'Education Gazette 新职位', jobs: jobs.jobs }));
+    await writeFile(new URL('feed-aewv.xml', OUT), atomFeed({ ...common, id: 'gazette-aewv', title: 'Education Gazette 新职位（雇主有 AEWV 认证候选）', jobs: jobs.jobs.filter((j) => j.key && matches[j.key]) }));
+  }
   const linked = jobs.jobs.filter((j) => j.key);
   console.log(`jobs: ${jobs.jobs.length} open, ${linked.length} linked to institutions, ${linked.filter((j) => matches[j.key]).length} with AEWV candidates`);
   const levels = Object.values(matches).reduce((a, m) => ((a[m.level] = (a[m.level] ?? 0) + 1), a), {});
