@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import type { AewvMatch, Dataset, Institution } from '../types';
+import type { Dataset, Institution } from '../types';
+import { LEVEL } from '../aewv';
 import { CAT_LABEL, daysSince, displayHost, districtLabel, fmtDate, safeHref } from '../format';
 import { JOB_SITES, REPO_URL, STALE_DAYS } from '../config';
 import { careersOf, websiteOf } from '../data';
 import { MiniMap } from './MapView';
+import { JobCard, closed } from './JobsPage';
 
 function Ext({ href, children }: { href: string | null | undefined; children: React.ReactNode }) {
   const h = safeHref(href);
@@ -15,13 +17,6 @@ function Stale({ date }: { date: string | null }) {
   if (d === null) return <span className="tag warn">核实日期未知</span>;
   return d > STALE_DAYS ? <span className="tag warn">{d} 天未核实，资料可能过期</span> : null;
 }
-
-const LEVEL: Record<AewvMatch['level'], { label: string; cls: string; note: string }> = {
-  high: { label: '高可信候选', cls: 'ok', note: '已确认机构与法律雇主关系，且 NZBN 出现在所依据的认证名单中。' },
-  medium: { label: '中可信候选', cls: 'info', note: '名称一致，但机构与雇主的对应关系尚未确认，人工复核前不视为已核实。' },
-  low: { label: '低可信候选·待核实', cls: 'warn', note: '仅名称相似，不构成认证结论。' },
-  conflict: { label: '多个候选·待核实', cls: 'warn', note: '存在多个同等级候选雇主，无法确定对应关系。' },
-};
 
 function Aewv({ ds, r }: { ds: Dataset; r: Institution }) {
   const m = ds.overlays.aewv.matches[r.key];
@@ -66,6 +61,20 @@ function Aewv({ ds, r }: { ds: Dataset; r: Institution }) {
   );
 }
 
+function OpenJobs({ ds, r }: { ds: Dataset; r: Institution }) {
+  const jobs = (ds.jobsByKey.get(r.key) ?? []).filter((j) => !closed(j));
+  return (
+    <section className="panel">
+      <h2>在招职位（Education Gazette）</h2>
+      {jobs.length ? (
+        <ul className="cards jobs single">{jobs.map((j) => <li key={j.id}><JobCard ds={ds} j={j} /></li>)}</ul>
+      ) : (
+        <p className="muted">{ds.jobs.source ? `截至 ${fmtDate(ds.jobs.source.fetchedAt, true)}，Education Gazette 上没有该机构的在招职位。` : '职位数据暂不可用。'}</p>
+      )}
+    </section>
+  );
+}
+
 function JobSearch({ r }: { r: Institution }) {
   const keywords = [r.name, `${r.name} teacher`, `${r.cat === 'ece' ? 'early childhood teacher' : 'teacher'} ${r.suburb ?? r.city ?? ''}`.trim()];
   const [copied, setCopied] = useState<string | null>(null);
@@ -74,7 +83,7 @@ function JobSearch({ r }: { r: Institution }) {
   };
   return (
     <section className="panel">
-      <h2>外部招聘搜索</h2>
+      <h2>其他招聘网站</h2>
       <p className="hint">以下链接打开外部网站，结果由各平台提供；本站不同步、不保证完整或实时。可复制关键词到站内搜索。</p>
       <div className="chips">
         {keywords.map((k) => (
@@ -104,7 +113,7 @@ export function DetailPage({ ds, r }: { ds: Dataset; r: Institution }) {
 
   return (
     <article className="detail">
-      <a href="#/" onClick={(e) => { if (history.length > 1) { e.preventDefault(); history.back(); } }} className="back">← 返回结果</a>
+      <a href="#/schools" onClick={(e) => { if (history.length > 1) { e.preventDefault(); history.back(); } }} className="back">← 返回结果</a>
       <header>
         <div className="card-top">
           <span className={`tag ${r.cat}`}>{CAT_LABEL[r.cat]}</span>
@@ -141,6 +150,7 @@ export function DetailPage({ ds, r }: { ds: Dataset; r: Institution }) {
             {enrichEdit && <p className="hint">管理员：<Ext href={enrichEdit}>在 GitHub 编辑补充资料</Ext>（键 <code>{r.key}</code>；需仓库写权限，修改历史即审计记录）。</p>}
           </section>
 
+          <OpenJobs ds={ds} r={r} />
           <Aewv ds={ds} r={r} />
           <JobSearch r={r} />
         </div>

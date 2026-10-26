@@ -7,7 +7,11 @@ dist
 private/
 raw/
 public/data/overlays.json
+public/data/jobs.json
 *.tsbuildinfo
 
 # AEWV snapshot: licence NOASSERTION, fetched at deploy time, never committed
 data/aewv/snapshot.*
+
+# Vacancy listings: fetched at deploy time, never committed
+data/jobs/

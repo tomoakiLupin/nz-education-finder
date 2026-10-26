@@ -2,7 +2,7 @@
 // Runs offline at deploy time; the official snapshot in public/data/institutions.json is never modified.
 import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { safeUrl, parseCsv, normNzbn, matchAewv } from './lib.mjs';
+import { safeUrl, parseCsv, normNzbn, matchAewv, matchJobs } from './lib.mjs';
 
 const DATA = new URL('../data/', import.meta.url);
 const OUT = new URL('../public/data/', import.meta.url);
@@ -77,6 +77,17 @@ async function loadAewv() {
   return { employers, meta };
 }
 
+/** Vacancies from scripts/fetch-jobs.mjs, linked to institutions; closed ones dropped. Missing file → empty list. */
+async function buildJobs(records) {
+  const file = new URL('jobs/gazette.json', DATA);
+  if (!existsSync(file)) return { source: null, jobs: [] };
+  const { source, jobs } = await readJson(file);
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Pacific/Auckland' }).format(new Date());
+  const open = jobs.filter((j) => j.closing >= today);
+  const keys = matchJobs(open, records);
+  return { source, jobs: open.map((j, i) => ({ ...j, key: keys[i] })) };
+}
+
 async function main() {
   const { records } = await readJson(new URL('institutions.json', OUT));
   const known = new Set(records.map((r) => r.key));
@@ -96,6 +107,10 @@ async function main() {
     aewv: { source: aewv.meta, matches },
   };
   await writeFile(new URL('overlays.json', OUT), JSON.stringify(overlays));
+  const jobs = await buildJobs(records);
+  await writeFile(new URL('jobs.json', OUT), JSON.stringify(jobs));
+  const linked = jobs.jobs.filter((j) => j.key);
+  console.log(`jobs: ${jobs.jobs.length} open, ${linked.length} linked to institutions, ${linked.filter((j) => matches[j.key]).length} with AEWV candidates`);
   const levels = Object.values(matches).reduce((a, m) => ((a[m.level] = (a[m.level] ?? 0) + 1), a), {});
   console.log(`enrichments: ${Object.keys(enrich.out).length} institutions; groups: ${overlays.groups.map((g) => `${g.id}=${g.members.length}`).join(', ')}; aewv employers: ${aewv.employers.length}, matches: ${JSON.stringify(levels)}`);
   if (enrich.problems.length) {

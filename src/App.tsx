@@ -5,9 +5,10 @@ import { filtersFromQuery, filtersToQuery, type Filters } from './filters';
 import { SearchPage } from './components/SearchPage';
 import { DetailPage } from './components/DetailPage';
 import { AboutPage } from './components/AboutPage';
+import { JobsPage, jobFiltersFromQuery, jobFiltersToQuery, type JobFilters } from './components/JobsPage';
 import { fmtDate } from './format';
 
-// Hash routes: #/?<filters>  ·  #/i/<key>  ·  #/about
+// Hash routes: #/?<job filters>  ·  #/schools?<filters>  ·  #/i/<key>  ·  #/about
 function parseHash() {
   const h = location.hash.replace(/^#/, '') || '/';
   const [path, qs = ''] = h.split('?');
@@ -30,38 +31,47 @@ export function App() {
     if (route.path.startsWith('/i/')) window.scrollTo(0, 0);
   }, [route.path]);
 
-  const filters = filtersFromQuery(route.qs);
-  const setFilters = useCallback((f: Filters) => {
-    const qs = filtersToQuery(f);
-    const next = `#/${qs ? `?${qs}` : ''}`;
-    // Typing in the search box should not flood history.
-    if (f.q !== filtersFromQuery(parseHash().qs).q) history.replaceState(null, '', next);
+  // Typing in a search box should not flood history.
+  const navigate = useCallback((next: string, typing: boolean) => {
+    if (typing) history.replaceState(null, '', next);
     else history.pushState(null, '', next);
     setRoute(parseHash());
   }, []);
+  const filters = filtersFromQuery(route.qs);
+  const setFilters = useCallback((f: Filters) => {
+    const qs = filtersToQuery(f);
+    navigate(`#/schools${qs ? `?${qs}` : ''}`, f.q !== filtersFromQuery(parseHash().qs).q);
+  }, [navigate]);
+  const jobFilters = jobFiltersFromQuery(route.qs);
+  const setJobFilters = useCallback((f: JobFilters) => {
+    const qs = jobFiltersToQuery(f);
+    navigate(`#/${qs ? `?${qs}` : ''}`, f.q !== jobFiltersFromQuery(parseHash().qs).q);
+  }, [navigate]);
   const open = useCallback((key: string) => { location.hash = `#/i/${encodeURIComponent(key)}`; }, []);
 
   let body: React.ReactNode;
   if (err) body = <div className="banner warn">数据加载失败：{err}。请稍后刷新重试。</div>;
-  else if (!ds) body = <div className="loading">正在加载机构目录…</div>;
+  else if (!ds) body = <div className="loading">正在加载职位与机构数据…</div>;
   else if (route.path === '/about') body = <AboutPage ds={ds} />;
   else if (route.path.startsWith('/i/')) {
     const r = ds.byKey.get(decodeURIComponent(route.path.slice(3)));
-    body = r ? <DetailPage ds={ds} r={r} /> : <div className="empty"><p>未找到该机构。</p><a className="btn" href="#/">返回目录</a></div>;
-  } else body = <SearchPage ds={ds} f={filters} setF={setFilters} open={open} />;
+    body = r ? <DetailPage ds={ds} r={r} /> : <div className="empty"><p>未找到该机构。</p><a className="btn" href="#/schools">返回目录</a></div>;
+  } else if (route.path === '/schools') body = <SearchPage ds={ds} f={filters} setF={setFilters} open={open} />;
+  else body = <JobsPage ds={ds} f={jobFilters} setF={setJobFilters} />;
 
   return (
     <>
       <header className="site">
         <a href="#/" className="brand"><span className="logo" aria-hidden>⌂</span> NZ Education Finder</a>
         <nav>
-          <a href="#/" className={route.path === '/' ? 'on' : ''}>机构目录</a>
+          <a href="#/" className={route.path === '/' ? 'on' : ''}>在招职位</a>
+          <a href="#/schools" className={route.path === '/schools' ? 'on' : ''}>机构目录</a>
           <a href="#/about" className={route.path === '/about' ? 'on' : ''}>数据与说明</a>
         </nav>
       </header>
       <main>{body}</main>
       <footer className="site">
-        <span>数据：Ministry of Education（Education Counts／data.govt.nz），CC BY 4.0{ds && ` · 本站导入 ${fmtDate(ds.generatedAt, true)}`}</span>
+        <span>职位：Education Gazette · 机构：Ministry of Education（data.govt.nz），CC BY 4.0 · AEWV：NZ Accredited Employer Inspector{ds && ` · 目录导入 ${fmtDate(ds.generatedAt, true)}`}</span>
         <span>地图 © OpenStreetMap contributors · 本站非政府网站，信息仅供参考</span>
       </footer>
     </>

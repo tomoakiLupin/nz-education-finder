@@ -1,4 +1,4 @@
-import type { Batch, Dataset, Institution, Overlays } from './types';
+import type { Batch, Dataset, Institution, JobsData, Overlays } from './types';
 import { normalize } from './format';
 
 async function getJson<T>(path: string): Promise<T> {
@@ -8,17 +8,23 @@ async function getJson<T>(path: string): Promise<T> {
 }
 
 export async function loadDataset(): Promise<Dataset> {
-  const [inst, batches, overlays] = await Promise.all([
+  const [inst, batches, overlays, jobs] = await Promise.all([
     getJson<{ generatedAt: string; records: Institution[] }>('data/institutions.json'),
     getJson<Batch[]>('data/batches.json'),
     getJson<Overlays>('data/overlays.json'),
+    // Vacancies are optional: the directory still works if this file is missing.
+    getJson<JobsData>('data/jobs.json').catch((): JobsData => ({ source: null, jobs: [] })),
   ]);
   const records = inst.records;
+  const jobsByKey = new Map<string, JobsData['jobs']>();
+  for (const j of jobs.jobs) if (j.key) (jobsByKey.get(j.key) ?? jobsByKey.set(j.key, []).get(j.key)!).push(j);
   return {
     generatedAt: inst.generatedAt,
     records,
     batches,
     overlays,
+    jobs,
+    jobsByKey,
     byKey: new Map(records.map((r) => [r.key, r])),
     batchById: new Map(batches.map((b) => [b.id, b])),
     search: new Map(records.map((r) => [r.key, `${normalize(r.name)} ${r.id}`])),

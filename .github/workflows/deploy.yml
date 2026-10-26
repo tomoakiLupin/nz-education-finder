@@ -7,7 +7,7 @@ on:
     workflows: [Update official data]
     types: [completed]
   schedule:
-    - cron: '17 * * * *' # hourly probe; rebuilds only when a new AEWV snapshot has been published
+    - cron: '17 * * * *' # hourly probe; rebuilds only when vacancies or the AEWV snapshot changed
   workflow_dispatch:
 
 permissions:
@@ -20,7 +20,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Scheduled runs only: compare the nzaei catalog with the snapshot the live site was built from.
+  # Scheduled runs only: compare upstream sources with what the live site was built from.
   check:
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
@@ -33,7 +33,7 @@ jobs:
       - id: pages
         uses: actions/configure-pages@v5
       - id: probe
-        run: node scripts/check-aewv.mjs "${{ steps.pages.outputs.base_url }}"
+        run: node scripts/check-updates.mjs "${{ steps.pages.outputs.base_url }}"
 
   build:
     needs: check
@@ -54,6 +54,8 @@ jobs:
       - run: npm test
       # Full accredited-employer snapshot (checksum-verified). On failure the job stops and the live site keeps the last good build.
       - run: node scripts/fetch-aewv.mjs
+      # Current Education Gazette vacancies (listing facts only); failure stops the deploy, live site keeps last build.
+      - run: node scripts/fetch-jobs.mjs
       # Builds enrichments / geo groups / AEWV matches; fails (and blocks publishing) on invalid admin data.
       - run: node scripts/build-overlays.mjs
       - run: npm run build

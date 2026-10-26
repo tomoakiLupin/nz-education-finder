@@ -32,6 +32,24 @@ export function AboutPage({ ds }: { ds: Dataset }) {
         同一内容重复导入不会产生新批次。在新批次中消失的机构标记为“来源缺失·待核实”，不视为已关闭，也不删除人工补充资料。
       </p>
 
+      <h2>在招职位</h2>
+      {ds.jobs.source ? (
+        <>
+          <p>
+            来源：<a href={safeHref(ds.jobs.source.url)} target="_blank" rel="noopener noreferrer">Education Gazette</a>（Ministry of Education 官方教育招聘平台，学校和 ECE 的教职基本都在这里发布）。
+            本站每小时检查一次，有变化就更新；只显示职位标题、学校、地区、类别和截止日期，<strong>不转载广告正文</strong>，详情和申请请点进原文。
+          </p>
+          <ul>
+            <li>获取于 {fmtDate(ds.jobs.source.fetchedAt, true)}，在招 {ds.jobs.jobs.length.toLocaleString()} 个职位，
+              其中 {ds.jobs.jobs.filter((j) => j.key).length.toLocaleString()} 个能唯一对应到官方机构目录（按名称完全一致，同名时用地区区分；对不上的不猜测）</li>
+          </ul>
+          <p>
+            <strong>SEEK 和 Trade Me 为什么没有接入：</strong>SEEK 的使用条款禁止机器人、抓取和在其他网站转载其内容；
+            Trade Me 的 API 需要申请批准，且条款不允许保存或再提供其数据。因此这两个平台只提供入口链接——看到学校名后，在“机构目录”搜索即可查看该校的认证情况。
+          </p>
+        </>
+      ) : <p>职位数据暂不可用。</p>}
+
       <h2>AEWV 认证雇主名单</h2>
       {aewv ? (
         <>

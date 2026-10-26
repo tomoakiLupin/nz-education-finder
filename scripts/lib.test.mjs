@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalize, safeUrl, validCoord, toPublicRecord, mergeBatch, parseCsv, matchAewv } from './lib.mjs';
+import { normalize, safeUrl, validCoord, toPublicRecord, mergeBatch, parseCsv, matchAewv, matchJobs } from './lib.mjs';
 
 test('normalize keeps matching tolerant of macrons, case and spacing', () => {
   assert.equal(normalize('  Kaipātiki   Kindergarten '), 'kaipatiki kindergarten');
@@ -101,4 +101,21 @@ test('AEWV: a place name shared by a kindergarten and a college is not a candida
   const institutions = [inst('ece:9', 'Ruawai Kindergarten')];
   const employers = [emp('The Ruawai College Board', '9429000000006', 'Ruawai College')];
   assert.equal(matchAewv({ institutions, employers, links: [], reviews: [] })['ece:9'], undefined);
+});
+
+test('matchJobs links vacancies by exact name, breaks ties by region, never guesses', () => {
+  const inst = [
+    { key: 'school:1', name: 'St Mary’s School', region: 'Auckland Region', sourceStatus: 'present' },
+    { key: 'school:2', name: "St Mary's School", region: 'Nelson Region', sourceStatus: 'present' },
+    { key: 'school:3', name: 'Rangitoto School', region: 'Waikato Region', sourceStatus: 'present' },
+    { key: 'ece:9', name: 'Closed Kindy', region: 'Otago Region', sourceStatus: 'source_missing' },
+  ];
+  const jobs = [
+    { institute: 'Rangitoto School ', region: 'Waikato' },
+    { institute: "St Mary's School", region: 'Tasman/Nelson' },
+    { institute: "St Mary's School", region: 'Otago' },
+    { institute: 'Closed Kindy', region: 'Otago' },
+    { institute: 'Sport Bay of Plenty', region: 'Bay of Plenty' },
+  ];
+  assert.deepEqual(matchJobs(jobs, inst), ['school:3', 'school:2', null, null, null]);
 });

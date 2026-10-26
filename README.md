@@ -1,12 +1,13 @@
 # NZ Education Finder
 
-新西兰 School 与 ECE 机构检索网站（PRD：[NZ_Education_Finder_PRD.md](NZ_Education_Finder_PRD.md)）。
+新西兰教育行业找工作网站：列出 Education Gazette 在招职位，并对每个职位显示该学校／ECE 雇主的 AEWV 认证情况；另有全国 School 与 ECE 机构检索（PRD：[NZ_Education_Finder_PRD.md](NZ_Education_Finder_PRD.md)）。
 纯静态站点，托管在 GitHub Pages，数据更新由 GitHub Actions 定时执行，无需个人电脑开机。
 
 ## 功能（对应 PRD）
 
 | PRD | 实现 |
 | --- | --- |
+| 职位 | 首页：Education Gazette 在招职位（每小时检查更新），按地区、学段、职位类型、工作性质、是否适合新教师、雇主 AEWV 认证筛选；职位关联到官方机构，机构详情页显示其在招职位 |
 | F01 | 从 data.govt.nz（Ministry of Education，CC BY 4.0）导入 School 与 ECE 目录；唯一键 `school:<id>` / `ece:<id>`，两目录 ID 不冲突 |
 | F02 | 全部／School／ECE 切换，名称或官方 ID 搜索（大小写、空格、macron 容错），分页、排序 |
 | F03 | Region → City／District → Suburb 级联筛选 + 按类别分组的机构类型；上级变化自动清除失效下级；空值单列“未提供” |
@@ -38,8 +39,16 @@
 
 之后：
 - **Update official data** 每周自动拉取官方目录，有变化才提交，然后自动重新部署；也可在 Actions 页手动运行。
-- **Deploy site** 每小时检查一次 AEWV 快照目录（约 8 KB）：发现新快照（SHA-256 与线上不同）才下载、重新匹配并部署，否则直接结束。新快照发布后约 1 小时内上线。
+- **Deploy site** 每小时检查一次：Education Gazette 职位或 AEWV 快照（SHA-256 与线上不同）有变化才重新构建并部署，否则直接结束。
 - 任何对 `main` 的推送都会重新部署。
+
+## 职位数据来源
+
+`scripts/fetch-jobs.mjs` 读取 Education Gazette 职位页自己使用的 `https://gazette.education.govt.nz/vacancies/data.json`（约 1,300 条），校验后只保留职位事实（标题、学校、地区、类别、截止日期、原文链接），**不保存、不转载广告正文**；输出不提交到仓库。`build-overlays.mjs` 按名称（完全一致，同名用地区区分）把职位关联到官方机构，约 98% 能唯一对应。
+
+未接入的平台：
+- **SEEK**：使用条款禁止机器人、抓取、聚合以及在其他网站转载其内容，只有授权 API 例外（面向招聘系统合作方）。
+- **Trade Me Jobs**：API 需注册并获批准，条款不允许保存或再提供数据、每次使用都须重新调用 API，与静态站点不兼容。若要接入需先向 Trade Me（api-jobs@trademe.co.nz）申请。
 
 ## AEWV 数据来源
 
@@ -86,6 +95,7 @@ INZ 官方查询页（[Accredited employer list](https://www.immigration.govt.nz
 npm install
 npm run import                     # 拉取官方目录到 public/data/
 node scripts/fetch-aewv.mjs         # 下载 AEWV 认证雇主快照
+node scripts/fetch-jobs.mjs         # 下载 Education Gazette 在招职位
 node scripts/build-overlays.mjs    # 生成 overlays.json
 npm run dev
 npm test                           # 导入／合并／AEWV 匹配单元测试

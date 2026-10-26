@@ -267,3 +267,25 @@ export function matchAewv({ institutions, employers, links, reviews }) {
 function empKey(e) {
   return normNzbn(e.nzbn) ?? `name:${normalize(e.legal_name || e.employer || e.trading_name)}`;
 }
+
+// Gazette regions are coarser ("Tasman/Nelson", "Manawatu/Whanganui") than MoE Regional_Council ("Nelson Region").
+const regionWords = (s) => new Set(normalize(String(s ?? '').replace(/ Region$/, '')).split(' ').filter(Boolean));
+const sameRegion = (gazette, moe) => [...regionWords(moe)].some((w) => regionWords(gazette).has(w));
+
+/**
+ * Link Education Gazette vacancies to directory institutions by exact normalized name, using region to break
+ * ties. Ambiguous or unknown advertisers stay unlinked (key null) rather than guessed.
+ */
+export function matchJobs(jobs, institutions) {
+  const byName = new Map();
+  for (const r of institutions) {
+    if (r.sourceStatus === 'source_missing') continue;
+    const k = normalize(r.name);
+    (byName.get(k) ?? byName.set(k, []).get(k)).push(r);
+  }
+  return jobs.map((j) => {
+    let c = byName.get(normalize(j.institute)) ?? [];
+    if (c.length > 1) c = c.filter((r) => sameRegion(j.region, r.region));
+    return c.length === 1 ? c[0].key : null;
+  });
+}

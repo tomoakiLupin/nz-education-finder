@@ -92,11 +92,35 @@ export interface Overlays {
   aewv: { source: AewvSource | null; matches: Record<string, AewvMatch> };
 }
 
+/** An open Education Gazette vacancy (listing facts only; the ad itself lives on the Gazette). */
+export interface Job {
+  id: number;
+  ref: string | null;
+  title: string;
+  institute: string;
+  region: string | null;
+  sectors: string[];
+  roles: string[];
+  positions: string[];
+  beginning: boolean;
+  closing: string;
+  closingTime: string | null;
+  url: string;
+  key: string | null; // linked directory institution, null when the advertiser could not be matched unambiguously
+}
+
+export interface JobsData {
+  source: { name: string; url: string; sha256: string; count: number; fetchedAt: string } | null;
+  jobs: Job[];
+}
+
 export interface Dataset {
   generatedAt: string;
   records: Institution[];
   batches: Batch[];
   overlays: Overlays;
+  jobs: JobsData;
+  jobsByKey: Map<string, Job[]>;
   byKey: Map<string, Institution>;
   batchById: Map<string, Batch>;
   search: Map<string, string>;

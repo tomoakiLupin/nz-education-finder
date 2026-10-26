@@ -113,6 +113,14 @@ select:disabled { opacity: 0.55; }
 .card:hover { border-color: var(--accent); }
 .card p { margin: 0; }
 .card-top { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.cards.jobs { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+.cards.jobs.single { grid-template-columns: minmax(0, 1fr); }
+.card.job { display: flex; flex-direction: column; gap: 4px; }
+.card.job h3 a { color: var(--text); text-decoration: none; }
+.card.job h3 a:hover { color: var(--accent); text-decoration: underline; }
+.card.job .tag.warn { margin-left: 6px; }
+.aewv-line { margin-top: auto; padding-top: 6px; border-top: 1px dashed var(--border); }
+.source-line { margin: -4px 0 12px; }
 
 .tag { display: inline-block; font-size: 0.74rem; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--bg); color: var(--muted); border: 1px solid var(--border); }
 .tag.school { background: color-mix(in srgb, var(--school) 14%, transparent); color: var(--school); border-color: transparent; }
@@ -159,6 +167,7 @@ th, td { border-bottom: 1px solid var(--border); padding: 7px 10px; text-align: 
 th { color: var(--muted); font-weight: 600; }
 
 @media (max-width: 860px) {
+  .cards.jobs { grid-template-columns: minmax(0, 1fr); }
   .search-layout, .detail-grid { grid-template-columns: minmax(0, 1fr); }
   .filters { position: static; }
   .map { height: 60vh; }
