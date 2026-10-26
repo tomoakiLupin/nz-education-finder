@@ -66,6 +66,8 @@ jobs:
 
   deploy:
     needs: build
+    # always(): otherwise the skipped `check` job (non-scheduled runs) cascades and skips this job too.
+    if: always() && needs.build.result == 'success'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
