@@ -7,7 +7,7 @@ on:
     workflows: [Update official data]
     types: [completed]
   schedule:
-    - cron: '0 18 * * *' # daily: picks up new AEWV snapshots (published ~every 3 days)
+    - cron: '17 * * * *' # hourly probe; rebuilds only when a new AEWV snapshot has been published
   workflow_dispatch:
 
 permissions:
@@ -20,8 +20,27 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Scheduled runs only: compare the nzaei catalog with the snapshot the live site was built from.
+  check:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.probe.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts
+      - id: pages
+        uses: actions/configure-pages@v5
+      - id: probe
+        run: node scripts/check-aewv.mjs "${{ steps.pages.outputs.base_url }}"
+
   build:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    needs: check
+    if: >-
+      always() &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success') &&
+      (github.event_name != 'schedule' || needs.check.outputs.changed == 'true')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

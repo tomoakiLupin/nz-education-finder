@@ -38,7 +38,7 @@
 
 之后：
 - **Update official data** 每周自动拉取官方目录，有变化才提交，然后自动重新部署；也可在 Actions 页手动运行。
-- **Deploy site** 每天定时运行一次，下载最新的 AEWV 认证雇主快照并重新计算匹配。
+- **Deploy site** 每小时检查一次 AEWV 快照目录（约 8 KB）：发现新快照（SHA-256 与线上不同）才下载、重新匹配并部署，否则直接结束。新快照发布后约 1 小时内上线。
 - 任何对 `main` 的推送都会重新部署。
 
 ## AEWV 数据来源
@@ -46,6 +46,8 @@
 INZ 官方查询页（[Accredited employer list](https://www.immigration.govt.nz/work/requirements-for-work-visas/approved-employers/accredited-employer-list/)）只能按名称或 NZBN 逐个查，结果超过约 1,000 条会被拒绝，没有整表下载。
 
 因此本站使用 [NZ Accredited Employer Inspector](https://nzaei.zemo.bio/open-data/) 发布的公开快照：以 MBIE 依 OIA 公布的完整名单为基础，结合 INZ 在线查询逐条复核，约每三天发布一次完整 CSV（约 3 万条，含雇主名称、商号、NZBN、到期日、行业、城市），每个快照固定不变，并附 SHA-256 和行数。
+
+为什么不在浏览器里实时获取：nzaei 和 INZ 的接口都没有开放跨域（CORS），GitHub Pages 上的网页无法直接请求；完整 CSV 约 8 MB，也不适合每位访客下载一遍。所以由 GitHub Actions 每小时检查，有更新就自动重建。
 
 `scripts/fetch-aewv.mjs` 读取 [catalog.json](https://data.nzaei.zemo.bio/catalog.json)，下载最新快照，校验 SHA-256、行数和必需字段，任一项不符就失败退出（线上保持上一版）。快照只在构建时使用，**不提交到仓库**（`data/aewv/snapshot.*` 已在 .gitignore 中）：源数据未声明再利用许可（NOASSERTION），所以网站只公开与机构匹配的雇主信息，不转载完整名单。
 

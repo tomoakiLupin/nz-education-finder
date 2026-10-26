@@ -38,7 +38,7 @@ export function AboutPage({ ds }: { ds: Dataset }) {
           <p>
             来源：<a href={safeHref(aewv.url)} target="_blank" rel="noopener noreferrer">{aewv.name}</a>。
             该项目以 MBIE 依《官方信息法》（OIA）公布的完整名单为基础，结合 INZ 在线查询逐条复核，约每三天发布一次带校验和的完整快照。
-            INZ 本身不提供整表下载。本站每天检查是否有新快照，只公开与机构匹配的雇主信息，不转载完整名单。
+            INZ 本身不提供整表下载。本站每小时检查一次，有新快照即自动重新匹配并更新，只公开与机构匹配的雇主信息，不转载完整名单。
           </p>
           <ul>
             <li>快照日期 {aewv.snapshotDate}，共 {aewv.rows.toLocaleString()} 条，SHA-256 <code>{aewv.sha256.slice(0, 12)}</code>，本站获取于 {fmtDate(aewv.fetchedAt, true)}</li>
