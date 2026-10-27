@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import type { Dataset } from './types';
+import { applyScroll, initNav, onHashChange, pushHash } from './nav';
 import { loadDataset } from './data';
 import { filtersFromQuery, filtersToQuery, type Filters } from './filters';
 import { SearchPage } from './components/SearchPage';
@@ -25,20 +26,19 @@ export function App() {
   const switchLang = (l: Lang) => { setLang(l); setLangState(l); };
 
   useEffect(() => {
+    initNav();
     loadDataset().then(setDs, (e) => setErr(String(e.message ?? e)));
-    const on = () => setRoute(parseHash());
+    const on = () => { onHashChange(); setRoute(parseHash()); };
     window.addEventListener('hashchange', on);
     return () => window.removeEventListener('hashchange', on);
   }, []);
 
-  useEffect(() => {
-    if (route.path.startsWith('/i/') || route.path.startsWith('/j/')) window.scrollTo(0, 0);
-  }, [route.path]);
+  // Back / forward returns to the saved scroll position; opening a vacancy or institution starts at the top.
+  useLayoutEffect(() => { if (ds) applyScroll(); }, [route, ds, lang]);
 
   // Typing in a search box should not flood history.
   const navigate = useCallback((next: string, typing: boolean) => {
-    if (typing) history.replaceState(null, '', next);
-    else history.pushState(null, '', next);
+    pushHash(next, typing);
     setRoute(parseHash());
   }, []);
   const filters = filtersFromQuery(route.qs);

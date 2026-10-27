@@ -3,13 +3,14 @@ dist
 *.local
 .env
 .env.*
-# Never commit private data, raw personal records, credentials or unlicensed JDs (PRD §20)
+# Never commit private data, raw personal records, credentials (PRD §20). Archived ad texts in data/archive/ have contacts removed.
 private/
 raw/
 public/data/overlays.json
 public/data/jobs.json
 public/data/archive.json
 public/data/feed*.xml
+public/data/ad/
 *.tsbuildinfo
 
 # AEWV snapshot: licence NOASSERTION, fetched at deploy time, never committed

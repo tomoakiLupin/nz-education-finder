@@ -1,6 +1,6 @@
 // Build public overlays from admin-maintained files in data/: published enrichments, geo groups and AEWV matches.
 // Runs offline at deploy time; the official snapshot in public/data/institutions.json is never modified.
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { safeUrl, parseCsv, normNzbn, matchAewv, matchJobs } from './lib.mjs';
 
@@ -92,10 +92,12 @@ async function buildJobs(records) {
   const past = existsSync(archiveFile)
     ? (await readFile(archiveFile, 'utf8')).split('\n').filter(Boolean).map((l) => JSON.parse(l)).filter((j) => !openIds.has(j.id))
     : [];
-  const link = (list) => { const keys = matchJobs(list, records); return list.map((j, i) => ({ ...j, key: keys[i] })); };
-  const slim = ({ id, ref, title, institute, region, sectors, roles, positions, beginning, closing, closingTime, url, firstSeen, delisted, visa, key }) =>
-    ({ id, ref, title, institute, region, sectors, roles, positions, beginning, closing, closingTime, url, firstSeen, delisted, visa, key });
-  return { current: { source, jobs: link(open) }, archive: { generatedAt: new Date().toISOString(), jobs: link(past).map(slim) } };
+  // Ad texts are served one file per vacancy (data/ad/<id>.json), loaded only when a vacancy page is opened.
+  const ads = [...open, ...past].filter((j) => j.text).map((j) => ({ id: j.id, text: j.text }));
+  const link = (list) => { const keys = matchJobs(list, records); return list.map(({ text, ...j }, i) => ({ ...j, hasText: Boolean(text), key: keys[i] })); };
+  const slim = ({ id, ref, title, institute, region, sectors, roles, positions, beginning, closing, closingTime, url, firstSeen, delisted, visa, hasText, key }) =>
+    ({ id, ref, title, institute, region, sectors, roles, positions, beginning, closing, closingTime, url, firstSeen, delisted, visa, hasText, key });
+  return { current: { source, jobs: link(open) }, archive: { generatedAt: new Date().toISOString(), jobs: link(past).map(slim) }, ads };
 }
 
 const VISA_TEXT = { no_overseas: '不接受海外申请／不提供签证担保', sponsor: '提及 AEWV／签证担保', residency: '要求／优先 NZ 居民或有效工作签证', other: '提及签证／海外申请人' };
@@ -146,9 +148,13 @@ async function main() {
     aewv: { source: aewv.meta, matches },
   };
   await writeFile(new URL('overlays.json', OUT), JSON.stringify(overlays));
-  const { current: jobs, archive } = await buildJobs(records);
+  const { current: jobs, archive, ads } = await buildJobs(records);
   await writeFile(new URL('jobs.json', OUT), JSON.stringify(jobs));
   await writeFile(new URL('archive.json', OUT), JSON.stringify(archive));
+  const adDir = new URL('ad/', OUT);
+  await rm(adDir, { recursive: true, force: true });
+  await mkdir(adDir, { recursive: true });
+  for (const a of ads) await writeFile(new URL(`${a.id}.json`, adDir), JSON.stringify(a));
   if (jobs.source) {
     const common = { matches, records, fetchedAt: jobs.source.fetchedAt };
     await writeFile(new URL('feed.xml', OUT), atomFeed({ ...common, id: 'gazette-all', title: 'Education Gazette 新职位', jobs: jobs.jobs }));

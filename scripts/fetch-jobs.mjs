@@ -1,9 +1,10 @@
 // Download current Education Gazette vacancies (Ministry of Education, https://gazette.education.govt.nz/vacancies/).
 // The vacancies page loads all live listings from one JSON file; we fetch that same file once per build.
 //
-// Kept per vacancy: listing facts (title, school, region, categories, closing date) plus the few sentences of the ad
-// that talk about visas / residency / overseas applicants. Those sentences come from the vacancy page, which is read
-// once per vacancy (new ones only). The rest of the ad — description, contact person, email, phone — is never stored.
+// Kept per vacancy: listing facts (title, school, region, categories, closing date), the ad text and the sentences of
+// it that talk about visas / residency / overseas applicants. The ad text comes from the vacancy page, which is read
+// once per vacancy (new ones only), so the ad can still be read after the Gazette removes it. Email addresses and
+// phone numbers are removed from the stored text; the contact block of the page is never read.
 //
 // Outputs:
 //   data/archive/jobs.jsonl  committed archive, one vacancy per line, kept after it closes (firstSeen / delisted).
@@ -11,7 +12,7 @@
 //   data/jobs/gazette.json   current snapshot for the build (git-ignored)
 import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { sha256, extractVisa, gazetteDescription } from './lib.mjs';
+import { sha256, extractVisa, gazetteDescription, redactContacts } from './lib.mjs';
 
 export const GAZETTE = 'https://gazette.education.govt.nz/vacancies/';
 const DIR = new URL('../data/jobs/', import.meta.url);
@@ -29,14 +30,17 @@ async function readArchive() {
   return new Map(lines.map((l) => { const r = JSON.parse(l); return [r.id, r]; }));
 }
 
-/** Visa-related sentences of one vacancy, or null if the page could not be read (retried next run). */
-async function visaFor(url) {
+/**
+ * Ad text (contacts removed) and visa-related sentences of one vacancy; text null once the page is gone (404).
+ * Returns null if the page could not be read, so it is retried next run.
+ */
+async function adFor(url) {
   try {
     const res = await fetch(url, { headers: UA });
-    if (res.status === 404) return [];
+    if (res.status === 404) return { text: null, visa: [] };
     if (!res.ok) return null;
     const text = gazetteDescription(await res.text());
-    return text === null ? null : extractVisa(text);
+    return text === null ? null : { text: redactContacts(text), visa: extractVisa(text) };
   } catch {
     return null;
   }
@@ -84,14 +88,16 @@ async function main() {
   }
   for (const r of archive.values()) if (!live.has(r.id) && !r.delisted) r.delisted = today; // closed or withdrawn
 
-  // Read the vacancy page once for anything not yet checked.
-  const todo = current.filter((j) => !archive.get(j.id).visaCheckedAt).slice(0, PAGE_LIMIT);
+  // Read the vacancy page once for anything not yet read (rows archived before ad text was kept have no `text` key;
+  // their pages are tried once too, and stay without text if the Gazette has removed them).
+  const todo = [...archive.values()].filter((r) => !r.visaCheckedAt || !('text' in r)).sort((a, b) => b.id - a.id).slice(0, PAGE_LIMIT);
   let read = 0, failed = 0;
   for (let i = 0; i < todo.length; i += CONCURRENCY) {
-    await Promise.all(todo.slice(i, i + CONCURRENCY).map(async (j) => {
-      const visa = await visaFor(j.url);
-      if (visa === null) { failed++; return; }
-      Object.assign(archive.get(j.id), { visa, visaCheckedAt: today });
+    await Promise.all(todo.slice(i, i + CONCURRENCY).map(async (r) => {
+      const ad = await adFor(r.url);
+      if (ad === null) { failed++; return; }
+      // A removed page keeps the visa sentences read while it was live.
+      Object.assign(r, ad.text === null && r.visaCheckedAt ? { text: null } : { ...ad, visaCheckedAt: today });
       read++;
     }));
     await sleep(300);

@@ -25,12 +25,14 @@ export function AboutPage({ ds }: { ds: Dataset }) {
           <ul>
             <li>{t(`获取于 ${fmtDate(jobs.fetchedAt, true)}，在招 ${ds.jobs.jobs.length.toLocaleString()} 个职位，其中 ${ds.jobs.jobs.filter((j) => j.key).length.toLocaleString()} 个能唯一对应到官方机构目录（名称完全一致，同名时用地区区分；对不上的不猜测）。`,
               `Fetched ${fmtDate(jobs.fetchedAt, true)}: ${ds.jobs.jobs.length.toLocaleString()} open vacancies, ${ds.jobs.jobs.filter((j) => j.key).length.toLocaleString()} matched to exactly one directory institution (exact name, region as tie-break; no guessing).`)}</li>
-            <li>{t(`签证要求：每个职位的广告原文只读取一次，摘出与签证、居民身份、海外申请人、AEWV／担保有关的句子（目前 ${visaJobs} 个职位有此类句子）并自动分类。广告的其他内容不保存。`,
-              `Visa requirements: each ad is read once and only sentences about visas, residency, overseas applicants or AEWV / sponsorship are kept and classified automatically (${visaJobs} open vacancies currently have one). Nothing else from the ad is stored.`)}</li>
-            <li>{t('归档：截止或下架的职位保留在仓库的 data/archive/jobs.jsonl 中（职位信息 + 签证句子 + 首次收录／下架日期），用于对比各校历年招聘。从 2026-10-27 开始。',
-              'Archive: closed or withdrawn vacancies are kept in data/archive/jobs.jsonl in the repository (listing facts, visa sentences, first-seen and delisted dates) so schools’ hiring can be compared over time. Started 2026-10-27.')}</li>
-            <li>{t('不保存联系人：广告里的联系人姓名、电话和邮箱不会被收集或显示。Gazette 对邮箱做了防采集处理；本站和仓库都是公开的，把学校员工的个人联系方式批量存档再公开不合适。联系方式请在原文中查看。',
-              'No contact details: contact names, phone numbers and emails in ads are not collected or shown. The Gazette protects emails against harvesting, and this site and its repository are public, so compiling staff contact details here would not be appropriate. See the original ad for contacts.')}</li>
+            <li>{t(`广告原文与签证要求：每个职位的广告页只读取一次，保存广告正文，并摘出与签证、居民身份、海外申请人、AEWV／担保有关的句子（目前 ${visaJobs} 个职位有此类句子）自动分类。广告版权归刊登的学校／机构所有，本站存档是为了职位下架后仍能查看；如有学校希望移除，请在仓库提 issue。`,
+              `Ad text and visa requirements: each ad page is read once; the ad text is kept, and sentences about visas, residency, overseas applicants or AEWV / sponsorship are picked out and classified automatically (${visaJobs} open vacancies currently have one). Ads are the copyright of the advertising school or service; they are archived so they can still be read after the listing is removed. Schools can ask for removal through a GitHub issue.`)}</li>
+            <li>{t('归档：截止或下架的职位保留在仓库的 data/archive/jobs.jsonl 中（职位信息、广告正文、签证句子、首次收录／下架日期），用于对比各校历年招聘。从 2026-10-27 开始，广告正文从 2026-10-28 开始保存。',
+              'Archive: closed or withdrawn vacancies are kept in data/archive/jobs.jsonl in the repository (listing facts, ad text, visa sentences, first-seen and delisted dates) so schools’ hiring can be compared over time. Started 2026-10-27; ad texts kept from 2026-10-28.')}</li>
+            <li>{t('联系方式：存档的广告正文去掉了邮箱和电话，也不读取广告页的联系人栏。Gazette 对邮箱做了防采集处理；本站和仓库都是公开的，把学校员工的联系方式批量存档再公开不合适。联系方式请在原文中查看。',
+              'Contact details: email addresses and phone numbers are removed from archived ad texts, and the contact block of the ad page is not read. The Gazette protects emails against harvesting, and this site and its repository are public, so compiling staff contact details here would not be appropriate. See the original ad for contacts.')}</li>
+            <li>{t('ERO 评估报告：机构页和职位页链接到 Education Review Office 上该校／幼儿园的页面（按教育部机构编号）。没有报告的机构会跳到 ERO 搜索页。',
+              'ERO reports: institution and vacancy pages link to the Education Review Office page for the school or ECE service (by Ministry institution number). Institutions without a report open ERO’s search.')}</li>
           </ul>
           <p>
             <strong>{t('SEEK 和 Trade Me 为什么没有接入：', 'Why SEEK and Trade Me are not included: ')}</strong>

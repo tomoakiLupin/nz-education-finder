@@ -115,6 +115,7 @@ export interface Job {
   delisted?: string; // date it disappeared from the Gazette (archive only)
   visa?: VisaNote[] | null; // null = ad text not checked yet
   visaCheckedAt?: string | null;
+  hasText?: boolean; // ad text archived, served from data/ad/<id>.json
 }
 
 export type VisaKind = 'no_overseas' | 'sponsor' | 'residency' | 'other';

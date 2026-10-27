@@ -377,6 +377,17 @@ export function gazetteDescription(html) {
     .split('\n').map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n');
 }
 
+const EMAIL = /\[email(?:\s|&#160;)*protected\]|[\w.+-]+ ?@ ?[\w-]+(?:\.[\w-]+)+/gi;
+const PHONE = /(?:\+?64[\s-]?\(?0?\d{1,2}\)?|\(?0\d{1,2}\)?|0800|0508)[\s-]?\d{3}[\s-]?\d{3,4}\b/g;
+/**
+ * The ad text with email addresses and phone numbers replaced, so the archive keeps what the job was,
+ * not how to reach the staff named in it. Contact details stay on the Gazette page.
+ */
+export function redactContacts(text) {
+  if (!text) return text;
+  return text.replace(EMAIL, '[email: see Gazette]').replace(PHONE, '[phone: see Gazette]');
+}
+
 /** Sentences about visas / residency / overseas applicants, each tagged with the strongest matching kind. */
 export function extractVisa(text) {
   if (!text) return [];

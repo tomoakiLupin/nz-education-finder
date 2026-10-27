@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Dataset, Institution } from '../types';
 import { level, visaKinds, visaLabel } from '../aewv';
-import { CAT_LABEL, daysSince, displayHost, districtLabel, fmtDate, safeHref } from '../format';
+import { CAT_LABEL, daysSince, displayHost, districtLabel, eroUrl, fmtDate, safeHref } from '../format';
 import { JOB_SITES, REPO_URL, STALE_DAYS } from '../config';
 import { careersOf, websiteOf } from '../data';
 import { t, tx } from '../i18n';
@@ -185,6 +185,10 @@ export function DetailPage({ ds, r }: { ds: Dataset; r: Institution }) {
                     <span className="small muted"> · {fmtDate(careers.verifiedAt)} {checked}{careers.sourceUrl && <> · <Ext href={careers.sourceUrl}>{t('依据', 'source')}</Ext></>}</span> <Stale date={careers.verifiedAt} />
                   </>
                 )}
+              </Row>
+              <Row k={t('ERO 评估报告', 'ERO review reports')}>
+                <Ext href={eroUrl(r)}>Education Review Office ↗</Ext>
+                <span className="small muted"> · {t('教育评估局对学校／幼儿园的定期评估；没有报告的机构会跳到 ERO 搜索页', 'regular reviews of schools and ECE services; institutions without a report open ERO’s search')}</span>
               </Row>
             </dl>
             {enrichEdit && <p className="hint">{t('管理员：', 'Admins: ')}<Ext href={enrichEdit}>{t('在 GitHub 编辑补充资料', 'edit enrichments on GitHub')}</Ext> ({t('键', 'key')} <code>{r.key}</code>{t('；需仓库写权限，修改历史即审计记录）。', '; needs repository write access — the commit history is the audit log).')}</p>}

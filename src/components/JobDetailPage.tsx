@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ArchivedJob, Dataset, VisaKind } from '../types';
-import { CAT_LABEL, displayHost, districtLabel, fmtDate } from '../format';
+import { CAT_LABEL, displayHost, districtLabel, eroUrl, fmtDate } from '../format';
+import { canGoBack } from '../nav';
 import { visaKinds, visaLabel } from '../aewv';
 import { websiteOf } from '../data';
 import { t } from '../i18n';
@@ -47,6 +48,33 @@ function VisaPanel({ j }: { j: ArchivedJob }) {
   );
 }
 
+// Short lines without closing punctuation are the ad's own section headings ("About the role", "Why join us?").
+const isHeading = (l: string) => l.length <= 40 && !/[.,;:]$/.test(l);
+
+/** The archived ad text, loaded on demand; still readable after the Gazette removes the listing. */
+function AdText({ j }: { j: ArchivedJob }) {
+  const [text, setText] = useState<string | null | undefined>(j.hasText ? undefined : null);
+  useEffect(() => {
+    if (!j.hasText) return;
+    let live = true;
+    fetch(`data/ad/${j.id}.json`).then((r) => (r.ok ? r.json() : null)).then((a) => live && setText(a?.text ?? null), () => live && setText(null));
+    return () => { live = false; };
+  }, [j.id, j.hasText]);
+  return (
+    <section className="panel ad-text">
+      <h2>{t('广告原文', 'Advertisement')}</h2>
+      {text === undefined ? <p className="muted">{t('正在加载…', 'Loading…')}</p>
+        : text === null ? <p className="muted">{t('本站没有这则广告的原文（在本站开始保存全文前已下架）。', 'The ad text was not archived here (it was removed before this site started keeping ad texts).')}</p>
+        : (
+          <>
+            <div lang="en">{text.split('\n').map((l, i) => (isHeading(l) ? <h3 key={i}>{l}</h3> : <p key={i}>{l}</p>))}</div>
+            <p className="hint">{t('摘自 Education Gazette，版权归刊登学校／机构所有；本站存档的副本已去掉邮箱和电话，联系方式和申请方式请看 Gazette 原文。', 'From Education Gazette; copyright belongs to the advertising school or service. Email addresses and phone numbers are removed from this archived copy — see the Gazette for contact details and how to apply.')}</p>
+          </>
+        )}
+    </section>
+  );
+}
+
 export function JobDetailPage({ ds, j }: { ds: Dataset; j: ArchivedJob }) {
   const r = j.key ? ds.byKey.get(j.key) : undefined;
   const [copied, setCopied] = useState(false);
@@ -63,7 +91,7 @@ export function JobDetailPage({ ds, j }: { ds: Dataset; j: ArchivedJob }) {
 
   return (
     <article className="detail">
-      <a href={isClosed ? '#/archive' : '#/'} onClick={(e) => { if (history.length > 1) { e.preventDefault(); history.back(); } }} className="back">← {t('返回职位列表', 'Back to vacancies')}</a>
+      <a href={isClosed ? '#/archive' : '#/'} onClick={(e) => { if (canGoBack()) { e.preventDefault(); history.back(); } }} className="back">← {t('返回职位列表', 'Back to vacancies')}</a>
       <header>
         <div className="card-top">
           {r && <span className={`tag ${r.cat}`}>{CAT_LABEL[r.cat]}</span>}
@@ -100,9 +128,11 @@ export function JobDetailPage({ ds, j }: { ds: Dataset; j: ArchivedJob }) {
             </dl>
             <div className="apply">
               <a className="btn" href={j.url} target="_blank" rel="noopener noreferrer">{t('在 Education Gazette 查看完整广告并申请 ↗', 'View the full ad and apply on Education Gazette ↗')}</a>
-              <p className="hint">{t('广告正文、联系人和申请方式请看原文；申请直接提交给学校。', 'The full ad, contact person and how to apply are on the Gazette; applications go directly to the school.')}</p>
+              <p className="hint">{t('联系人和申请方式请看原文；申请直接提交给学校。', 'The contact person and how to apply are on the Gazette; applications go directly to the school.')}</p>
             </div>
           </section>
+
+          <AdText j={j} />
 
           {r ? <Aewv ds={ds} r={r} /> : (
             <section className="panel">
@@ -133,6 +163,7 @@ export function JobDetailPage({ ds, j }: { ds: Dataset; j: ArchivedJob }) {
                 <Row k={t('City／District', 'City / District')}>{districtLabel(r)}</Row>
                 <Row k={t('在读人数', 'Roll')}>{r.roll !== null ? <>{r.roll}<span className="muted small"> ({r.rollDate ?? t('日期未知', 'date unknown')})</span></> : null}</Row>
                 <Row k={t('官网', 'Website')}>{web?.official && <Ext href={web.official}>{displayHost(web.official)} ↗</Ext>}</Row>
+                <Row k={t('ERO 评估报告', 'ERO reports')}><Ext href={eroUrl(r)}>Education Review Office ↗</Ext></Row>
                 <Row k={t('历史职位', 'Past vacancies')}>{(ds.archiveByKey.get(r.key)?.length ?? 0) > 0 ? <a href={`#/i/${encodeURIComponent(r.key)}`}>{t(`本站已归档 ${ds.archiveByKey.get(r.key)!.length} 个`, `${ds.archiveByKey.get(r.key)!.length} archived`)}</a> : t('暂无', 'None yet')}</Row>
               </dl>
             ) : <p className="muted">{t(`“${j.institute}”不在官方机构目录中（或有多个同名机构），没有更多资料。`, `“${j.institute}” is not in the official directory (or several institutions share the name), so there are no further details.`)}</p>}

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalize, safeUrl, validCoord, toPublicRecord, mergeBatch, parseCsv, matchAewv, matchJobs, extractVisa, gazetteDescription } from './lib.mjs';
+import { normalize, safeUrl, validCoord, toPublicRecord, mergeBatch, parseCsv, matchAewv, matchJobs, extractVisa, gazetteDescription, redactContacts } from './lib.mjs';
 
 test('normalize keeps matching tolerant of macrons, case and spacing', () => {
   assert.equal(normalize('  Kaipātiki   Kindergarten '), 'kaipatiki kindergarten');
@@ -169,4 +169,9 @@ test('extractVisa treats negative sponsorship statements as no-overseas', () => 
   assert.deepEqual(kinds('Please note - we are not looking for overseas applicants'), ['no_overseas']);
   assert.deepEqual(kinds('We are an accredited employer.'), ['sponsor']);
   assert.deepEqual(kinds('Candidates must have a New Zealand Work Visa allowing full-time employment.'), ['residency']);
+});
+
+test('redactContacts removes emails and phone numbers but keeps other numbers', () => {
+  const t = 'Contact Jo Bloggs, jo.bloggs @school.nz or [email protected], ph 09 399 2802, 021-123-4567, +64 21 555 1234 or 0800 123 456. Salary $75,000, 0.6 FTE, starting 2027.';
+  assert.equal(redactContacts(t), 'Contact Jo Bloggs, [email: see Gazette] or [email: see Gazette], ph [phone: see Gazette], [phone: see Gazette], [phone: see Gazette] or [phone: see Gazette]. Salary $75,000, 0.6 FTE, starting 2027.');
 });

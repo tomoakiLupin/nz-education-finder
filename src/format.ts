@@ -62,3 +62,10 @@ export const displayHost = (url: string) => {
     return url;
   }
 };
+
+/**
+ * Education Review Office page for an institution: ERO uses the Ministry institution number for schools and ECE
+ * services. The name part of the path is free text; institutions without an ERO page redirect to ERO's report search.
+ */
+export const eroUrl = (r: Pick<Institution, 'id' | 'name'>) =>
+  `https://www.ero.govt.nz/institution/${r.id}/${normalize(r.name).replace(/\s+/g, '-') || 'institution'}`;
