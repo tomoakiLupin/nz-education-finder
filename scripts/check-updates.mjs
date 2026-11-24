@@ -1,21 +1,21 @@
 // Cheap hourly probe: compare the upstream sources with what the live site was built from — the latest snapshot in
-// the nzaei catalog (≈8 KB) and the Education Gazette vacancies file. Writes changed=true|false to $GITHUB_OUTPUT so
+// the nzaei catalog (≈8 KB) and the Education Gazette sitemap (live vacancies + last-modified times). Writes changed=true|false to $GITHUB_OUTPUT so
 // the deploy workflow only rebuilds when something is new.
 // Usage: node scripts/check-updates.mjs <live site base url>
 import { appendFile } from 'node:fs/promises';
-import { sha256 } from './lib.mjs';
+import { gazetteSitemap, gazetteFingerprint, refToId } from './lib.mjs';
 
 const site = (process.argv[2] ?? '').replace(/\/?$/, '/');
 
 async function upstream() {
   const [cat, gz] = await Promise.all([
     fetch('https://data.nzaei.zemo.bio/catalog.json'),
-    fetch('https://gazette.education.govt.nz/vacancies/data.json'),
+    fetch('https://gazette.education.govt.nz/sitemap.xml'),
   ]);
   if (!cat.ok) throw new Error(`catalog.json: HTTP ${cat.status}`);
-  if (!gz.ok) throw new Error(`gazette data.json: HTTP ${gz.status}`);
+  if (!gz.ok) throw new Error(`gazette sitemap.xml: HTTP ${gz.status}`);
   const latest = [...(await cat.json()).snapshots].sort((a, b) => b.snapshot_date.localeCompare(a.snapshot_date))[0];
-  return { aewv: latest?.sha256 ?? null, jobs: sha256(Buffer.from(await gz.arrayBuffer())) };
+  return { aewv: latest?.sha256 ?? null, jobs: gazetteFingerprint(gazetteSitemap(await gz.text()).filter((e) => refToId(e.ref) !== null)) };
 }
 
 async function live(path, pick) {

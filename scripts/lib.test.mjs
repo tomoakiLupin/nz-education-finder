@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalize, safeUrl, validCoord, toPublicRecord, mergeBatch, parseCsv, matchAewv, matchJobs, extractVisa, gazetteDescription, redactContacts } from './lib.mjs';
+import { normalize, safeUrl, validCoord, toPublicRecord, mergeBatch, parseCsv, matchAewv, matchJobs, extractVisa, htmlToText, parseGazetteVacancy, gazetteSitemap, refToId, redactContacts } from './lib.mjs';
 
 test('normalize keeps matching tolerant of macrons, case and spacing', () => {
   assert.equal(normalize('  Kaipātiki   Kindergarten '), 'kaipatiki kindergarten');
@@ -156,9 +156,49 @@ test('extractVisa tags residency, no-overseas and sponsorship statements', () =>
   assert.deepEqual(extractVisa('Join our team of passionate educators.'), []);
 });
 
-test('gazetteDescription extracts the ad body as lines without markup', () => {
-  const html = '<div class="vd-description"><p>Hello &amp; welcome.</p>\n<p>Must hold a <b>valid</b> visa.</p></div><ul class="vd-contact-lines"><li>021</li></ul>';
-  assert.equal(gazetteDescription(html), 'Hello & welcome.\nMust hold a valid visa.');
+test('htmlToText turns an ad body into lines without markup', () => {
+  assert.equal(htmlToText('<p>Hello &amp; welcome.</p>\n<p>Must hold a <b>valid</b> visa.</p><ul><li>K&#x101;hui</li></ul>'), 'Hello & welcome.\nMust hold a valid visa.\nKāhui');
+});
+
+test('refToId decodes Gazette references to the numeric listing ids of the old data feed', () => {
+  assert.equal(refToId('1HAur5'), 277465);
+  assert.equal(refToId('1HAty_'), 274314);
+  assert.equal(refToId('1HAtKi'), 271983);
+  assert.equal(refToId('bad ref'), null);
+  assert.equal(refToId('1HAlr5'), null); // "l" is not in the alphabet
+});
+
+test('gazetteSitemap lists vacancy references with their last-modified time, nothing else', () => {
+  const xml = '<urlset><url><loc>https://gazette.education.govt.nz/vacancies</loc></url>'
+    + '<url><loc>https://gazette.education.govt.nz/vacancies/1HB1qt</loc><lastmod>2026-11-24T19:45:00.000Z</lastmod></url>'
+    + '<url><loc>https://gazette.education.govt.nz/stories/abc</loc></url></urlset>';
+  assert.deepEqual(gazetteSitemap(xml), [{ ref: '1HB1qt', modified: '2026-11-24T19:45:00.000Z' }]);
+});
+
+test('parseGazetteVacancy reads JobPosting data and role details, not the contact block', () => {
+  const ld = {
+    '@type': 'JobPosting', title: 'Year 5-6 Teacher', identifier: { value: '1HB1rR' },
+    description: '<p>Join us.</p><p>Applicants must hold NZ work rights.</p>', validThrough: '2026-12-09T02:00:00.000Z',
+    hiringOrganization: { name: 'Korakonui School' }, jobLocation: { address: { addressRegion: 'Waikato' } },
+  };
+  const html = `<script type="application/ld+json">${JSON.stringify(ld)}</script><h1>Year 5-6 Teacher</h1>`
+    + '<span class="x_tag">Part-time (0.5 FTTE)</span><span class="x_tag">Suitable for beginning teachers</span><h2>About the role</h2>'
+    + '<p>Direct enquiries to: Jo, 021 123 4567</p>'
+    + '<h2 id="role-details-2" class="h">Role details</h2><dl class="f"><dt>Role</dt><dd>Classroom teacher</dd>'
+    + '<dt>Sector</dt><dd>Primary and intermediate (Years 1–8) / kura tuatahi</dd><dt>Position</dt><dd>Part-time (0.5 FTTE), fixed-term</dd>'
+    + '<dt>Incentives and allowances</dt><dd>None listed</dd><dt>Learning areas</dt><dd>English, Health and PE</dd><dt>Region</dt><dd>Waikato</dd></dl>';
+  const v = parseGazetteVacancy(html);
+  assert.equal(v.ref, '1HB1rR');
+  assert.equal(v.institute, 'Korakonui School');
+  assert.deepEqual(v.roles, ['Classroom teacher']);
+  assert.deepEqual(v.positions, ['Part-time', 'Fixed-term']);
+  assert.deepEqual(v.learning, ['English', 'Health and PE']);
+  assert.equal(v.allowances, null);
+  assert.equal(v.beginning, true);
+  assert.equal(v.closing, '2026-12-09'); // NZ date
+  assert.equal(v.closingTime, '3pm'); // 02:00Z = 3pm NZDT
+  assert.equal(v.text, 'Join us.\nApplicants must hold NZ work rights.');
+  assert.equal(parseGazetteVacancy('<html>no data</html>'), null);
 });
 
 test('extractVisa treats negative sponsorship statements as no-overseas', () => {

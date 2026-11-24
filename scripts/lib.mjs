@@ -367,14 +367,77 @@ const VISA_RULES = [
 
 const decodeEntities = (s) => s
   .replace(/&nbsp;|&#160;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-  .replace(/&quot;/g, '"').replace(/&#0?39;|&apos;|&rsquo;|&#8217;/g, "'").replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)));
+  .replace(/&quot;/g, '"').replace(/&#0?39;|&apos;|&rsquo;|&#8217;/g, "'")
+  .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16))).replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)));
 
-/** Plain text of the "About the role" block of a Gazette vacancy page (paragraphs/list items → lines). */
-export function gazetteDescription(html) {
-  const m = html.match(/<div class="vd-description">([\s\S]*?)<\/div>/);
-  if (!m) return null;
-  return decodeEntities(m[1].replace(/<\/(p|li|h\d)>|<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ' '))
+/** HTML fragment → plain text lines (paragraphs / list items / headings / <br> end a line). */
+export function htmlToText(fragment) {
+  return decodeEntities(fragment.replace(/<\/(p|li|h\d|div)>|<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ' '))
     .split('\n').map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n');
+}
+
+/**
+ * Gazette vacancy references are the listing's numeric id in base 60 (this alphabet), offset by 10^9.
+ * Verified against every reference/id pair archived from the old data.json, so ids stay continuous across the redesign.
+ */
+const REF_ALPHABET = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZ_abcdefghijkmnopqrstuvwxyz';
+export function refToId(ref) {
+  if (!/^[0-9A-HJ-NP-Z_a-km-z]{4,10}$/.test(ref ?? '')) return null;
+  const n = [...ref].reduce((acc, c) => acc * 60 + REF_ALPHABET.indexOf(c), 0) - 1e9;
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
+}
+
+/** Live vacancies listed in the Gazette sitemap: [{ ref, modified }]. */
+export function gazetteSitemap(xml) {
+  return [...xml.matchAll(/<loc>https:\/\/gazette\.education\.govt\.nz\/vacancies\/([0-9A-Za-z_]+)<\/loc>(?:<lastmod>([^<]+)<\/lastmod>)?/g)]
+    .map((m) => ({ ref: m[1], modified: m[2] ?? null }));
+}
+
+const nzDate = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Pacific/Auckland' }).format(d);
+const nzTime = (d) => {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-NZ', { timeZone: 'Pacific/Auckland', hour: 'numeric', minute: '2-digit', hour12: true })
+    .formatToParts(d).map((x) => [x.type, x.value]));
+  return `${p.hour}${p.minute === '00' ? '' : `:${p.minute}`}${(p.dayPeriod ?? '').toLowerCase().replace(/\./g, '')}`;
+};
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+const list = (v) => (v ? v.split(/,\s+/).map((x) => x.trim()).filter(Boolean) : []);
+
+/**
+ * One vacancy page of the (2026-11 redesigned) Gazette site → listing facts + ad text.
+ * Facts come from the page's schema.org JobPosting and its "Role details" list. Returns null if the page has neither.
+ * The ad text is the JobPosting description only; the contact block ("Direct enquiries to") is never read.
+ */
+export function parseGazetteVacancy(html) {
+  const ldRaw = html.match(/<script type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/);
+  let ld = null;
+  try { ld = ldRaw ? JSON.parse(ldRaw[1]) : null; } catch { ld = null; }
+  if (!ld || ld['@type'] !== 'JobPosting') return null;
+  const dl = html.match(/<h2[^>]*>Role details<\/h2>\s*<dl[^>]*>([\s\S]*?)<\/dl>/);
+  const facts = {};
+  for (const m of (dl?.[1] ?? '').matchAll(/<dt>([\s\S]*?)<\/dt>\s*<dd>([\s\S]*?)<\/dd>/g)) facts[htmlToText(m[1])] = htmlToText(m[2]).replace(/\n/g, ' ');
+  const ref = ld.identifier?.value ?? null;
+  const closing = ld.validThrough ? new Date(ld.validThrough) : null;
+  // The header tags sit between the title and the ad; "similar roles" further down never carries them.
+  const head = html.slice(html.indexOf('<h1'), html.indexOf('About the role') > 0 ? html.indexOf('About the role') : undefined);
+  const allowances = facts['Incentives and allowances'];
+  return {
+    ref,
+    title: String(ld.title ?? '').trim(),
+    institute: String(ld.hiringOrganization?.name ?? '').trim(),
+    region: facts.Region ?? ld.jobLocation?.address?.addressRegion ?? null,
+    address: ld.jobLocation?.address?.streetAddress ?? null,
+    sectors: list(facts.Sector),
+    roles: list(facts.Role),
+    positions: list(facts.Position).map((p) => cap(p.replace(/\s*\([^)]*\)/g, '').trim())),
+    learning: list(facts['Learning areas']),
+    allowances: allowances && !/^none listed$/i.test(allowances) ? allowances : null,
+    beginning: />\s*Suitable for beginning teachers\s*</.test(head),
+    closing: closing && !Number.isNaN(closing.getTime()) ? nzDate(closing) : null,
+    closingTime: closing && !Number.isNaN(closing.getTime()) ? nzTime(closing) : null,
+    closesAt: ld.validThrough ?? null,
+    posted: ld.datePosted ?? null,
+    text: ld.description ? htmlToText(String(ld.description)) || null : null,
+  };
 }
 
 const EMAIL = /\[email(?:\s|&#160;)*protected\]|[\w.+-]+ ?@ ?[\w-]+(?:\.[\w-]+)+/gi;
@@ -405,3 +468,6 @@ export function extractVisa(text) {
   }
   return out;
 }
+
+/** Stable hash of the live vacancy set (ref + last-modified), so the hourly probe can tell whether anything changed. */
+export const gazetteFingerprint = (entries) => sha256(Buffer.from(entries.map((e) => `${e.ref} ${e.modified ?? ''}`).sort().join('\n')));
