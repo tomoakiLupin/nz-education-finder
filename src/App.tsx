@@ -7,11 +7,12 @@ import { SearchPage } from './components/SearchPage';
 import { DetailPage } from './components/DetailPage';
 import { AboutPage } from './components/AboutPage';
 import { JobDetailPage } from './components/JobDetailPage';
+import { MapPage, mapFiltersFromQuery, mapFiltersToQuery } from './components/MapPage';
 import { JobsPage, jobFiltersFromQuery, jobFiltersToQuery, type JobFilters } from './components/JobsPage';
 import { fmtDate } from './format';
 import { getLang, setLang, t, type Lang } from './i18n';
 
-// Hash routes: #/?<job filters>  ·  #/archive?<job filters>  ·  #/j/<gazette id>  ·  #/schools?<filters>  ·  #/i/<key>  ·  #/about
+// Hash routes: #/?<job filters>  ·  #/archive?<job filters>  ·  #/j/<gazette id>  ·  #/schools?<filters>  ·  #/map?<filters>  ·  #/i/<key>  ·  #/about
 function parseHash() {
   const h = location.hash.replace(/^#/, '') || '/';
   const [path, qs = ''] = h.split('?');
@@ -46,6 +47,11 @@ export function App() {
     const qs = filtersToQuery(f);
     navigate(`#/schools${qs ? `?${qs}` : ''}`, f.q !== filtersFromQuery(parseHash().qs).q);
   }, [navigate]);
+  const mapFilters = mapFiltersFromQuery(route.qs);
+  const setMapFilters = useCallback((f: Filters) => {
+    const qs = mapFiltersToQuery(f);
+    navigate(`#/map${qs ? `?${qs}` : ''}`, false);
+  }, [navigate]);
   const jobFilters = jobFiltersFromQuery(route.qs);
   const setJobFilters = useCallback((f: JobFilters) => {
     const qs = jobFiltersToQuery(f);
@@ -66,6 +72,7 @@ export function App() {
     const j = ds.jobs.jobs.find((x) => String(x.id) === id) ?? ds.archive.find((x) => String(x.id) === id);
     body = j ? <JobDetailPage ds={ds} j={j} /> : <div className="empty"><p>{t('未找到该职位。', 'Vacancy not found.')}</p><a className="btn" href="#/">{t('查看在招职位', 'See open vacancies')}</a></div>;
   } else if (route.path === '/schools') body = <SearchPage ds={ds} f={filters} setF={setFilters} open={open} />;
+  else if (route.path === '/map') body = <MapPage ds={ds} f={mapFilters} setF={setMapFilters} open={open} />;
   else if (route.path === '/archive') body = <JobsPage ds={ds} f={jobFilters} setF={setJobFilters} archive />;
   else body = <JobsPage ds={ds} f={jobFilters} setF={setJobFilters} />;
 
@@ -76,6 +83,7 @@ export function App() {
         <nav>
           <a href="#/" className={route.path === '/' || route.path === '/archive' ? 'on' : ''}>{t('职位', 'Vacancies')}</a>
           <a href="#/schools" className={route.path === '/schools' ? 'on' : ''}>{t('机构目录', 'Directory')}</a>
+          <a href="#/map" className={route.path === '/map' ? 'on' : ''}>{t('地图', 'Map')}</a>
           <a href="#/about" className={route.path === '/about' ? 'on' : ''}>{t('数据与说明', 'About the data')}</a>
           <button className="lang" onClick={() => switchLang(lang === 'zh' ? 'en' : 'zh')} aria-label={t('切换到英文', 'Switch to Chinese')}>{lang === 'zh' ? 'EN' : '中文'}</button>
         </nav>

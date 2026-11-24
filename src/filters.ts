@@ -10,13 +10,16 @@ export interface Filters {
   type: string; // "<cat>|<type>"
   group: string;
   missing: boolean; // include records no longer in the latest source batch
-  sort: 'name' | 'suburb' | 'roll';
+  aewv: '' | 'any' | 'strong'; // any AEWV candidate · medium/high confidence only
+  near: string; // "lat,lon" of the viewer (rounded), '' = no distance filter
+  radius: number; // km around `near`
+  sort: 'name' | 'suburb' | 'roll' | 'distance';
   page: number;
   view: 'list' | 'map';
 }
 
 export const DEFAULT_FILTERS: Filters = {
-  q: '', cat: 'all', region: '', district: '', suburb: '', type: '', group: '', missing: false, sort: 'name', page: 1, view: 'list',
+  q: '', cat: 'all', region: '', district: '', suburb: '', type: '', group: '', missing: false, aewv: '', near: '', radius: 10, sort: 'name', page: 1, view: 'list',
 };
 
 export function filtersFromQuery(qs: string): Filters {
@@ -26,8 +29,13 @@ export function filtersFromQuery(qs: string): Filters {
   const cat = p.get('cat');
   if (cat === 'school' || cat === 'ece') f.cat = cat;
   const sort = p.get('sort');
-  if (sort === 'suburb' || sort === 'roll') f.sort = sort;
+  if (sort === 'suburb' || sort === 'roll' || sort === 'distance') f.sort = sort;
   f.missing = p.get('missing') === '1';
+  const a = p.get('aewv');
+  if (a === 'any' || a === 'strong') f.aewv = a;
+  if (parseNear(p.get('near') ?? '')) f.near = p.get('near')!;
+  const radius = Number(p.get('radius'));
+  if (RADII.includes(radius)) f.radius = radius;
   f.page = Math.max(1, Number(p.get('page')) || 1);
   f.view = p.get('view') === 'map' ? 'map' : 'list';
   return f;
@@ -45,7 +53,34 @@ export function filtersToQuery(f: Filters): string {
 
 const val = (v: string | null) => v ?? NONE;
 
-interface Ctx { groupMembers: Set<string> | null; tokens: string[] }
+export const RADII = [2, 5, 10, 20, 50, 100];
+
+/** "lat,lon" → coordinates, or null when malformed / outside a plausible range. */
+export function parseNear(s: string): { lat: number; lon: number } | null {
+  const m = s.match(/^(-?\d{1,2}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)$/);
+  if (!m) return null;
+  const lat = Number(m[1]), lon = Number(m[2]);
+  return Math.abs(lat) <= 90 && Math.abs(lon) <= 180 ? { lat, lon } : null;
+}
+
+/** ~100 m precision: enough for a radius search, and a shared link does not reveal an exact address. */
+export const formatNear = (lat: number, lon: number) => `${lat.toFixed(3)},${lon.toFixed(3)}`;
+
+/** Great-circle distance in km. */
+export function haversineKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
+  const rad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * rad, dLon = (b.lon - a.lon) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLon / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/** Distance from the viewer's location, or null when no location is set or the record has no coordinates. */
+export function distanceOf(f: Filters, r: Institution): number | null {
+  const c = parseNear(f.near);
+  return c && r.lat !== null && r.lon !== null ? haversineKm(c, { lat: r.lat, lon: r.lon }) : null;
+}
+
+interface Ctx { groupMembers: Set<string> | null; tokens: string[]; near: { lat: number; lon: number } | null }
 
 function matches(ds: Dataset, r: Institution, f: Filters, ctx: Ctx, skip?: keyof Filters): boolean {
   if (!f.missing && r.sourceStatus === 'source_missing') return false;
@@ -55,6 +90,14 @@ function matches(ds: Dataset, r: Institution, f: Filters, ctx: Ctx, skip?: keyof
   if (skip !== 'suburb' && f.suburb && val(r.suburb) !== f.suburb) return false;
   if (skip !== 'type' && f.type && `${r.cat}|${val(r.type)}` !== f.type) return false;
   if (ctx.groupMembers && !ctx.groupMembers.has(r.key)) return false;
+  if (f.aewv) {
+    const m = ds.overlays.aewv.matches[r.key];
+    if (!m || (f.aewv === 'strong' && m.level !== 'high' && m.level !== 'medium')) return false;
+  }
+  if (ctx.near) {
+    if (r.lat === null || r.lon === null) return false;
+    if (haversineKm(ctx.near, { lat: r.lat, lon: r.lon }) > f.radius) return false;
+  }
   if (ctx.tokens.length) {
     const s = ds.search.get(r.key)!;
     if (!ctx.tokens.every((t) => s.includes(t))) return false;
@@ -64,14 +107,17 @@ function matches(ds: Dataset, r: Institution, f: Filters, ctx: Ctx, skip?: keyof
 
 function context(ds: Dataset, f: Filters): Ctx {
   const g = f.group ? ds.overlays.groups.find((x) => x.id === f.group) : null;
-  return { groupMembers: g ? new Set(g.members) : null, tokens: normalize(f.q).split(' ').filter(Boolean) };
+  return { groupMembers: g ? new Set(g.members) : null, tokens: normalize(f.q).split(' ').filter(Boolean), near: parseNear(f.near) };
 }
 
 export function applyFilters(ds: Dataset, f: Filters): Institution[] {
   const ctx = context(ds, f);
   const out = ds.records.filter((r) => matches(ds, r, f, ctx));
   const cmp = new Intl.Collator('en', { sensitivity: 'base', numeric: true }).compare;
-  if (f.sort === 'name') out.sort((a, b) => cmp(a.name, b.name));
+  if (f.sort === 'distance' && ctx.near) {
+    const d = new Map(out.map((r) => [r.key, distanceOf(f, r) ?? Infinity]));
+    out.sort((a, b) => d.get(a.key)! - d.get(b.key)! || cmp(a.name, b.name));
+  } else if (f.sort === 'name' || f.sort === 'distance') out.sort((a, b) => cmp(a.name, b.name));
   else if (f.sort === 'suburb') out.sort((a, b) => cmp(a.suburb ?? '￿', b.suburb ?? '￿') || cmp(a.name, b.name));
   else out.sort((a, b) => (b.roll ?? -1) - (a.roll ?? -1) || cmp(a.name, b.name));
   return out;

@@ -9,6 +9,8 @@ import { TILES } from '../config';
 import type { Institution } from '../types';
 import { CAT_LABEL } from '../format';
 
+export const fmtKm = (d: number) => (d < 1 ? `${Math.round(d * 1000)} m` : `${d.toFixed(d < 10 ? 1 : 0)} km`);
+
 const NZ_BOUNDS = L.latLngBounds([-47.4, 166.3], [-34.3, 178.7]);
 // Chatham Islands sit east of the antimeridian (lon ≈ -176); shift them so NZ stays one contiguous view.
 const pos = (r: Institution): [number, number] => [r.lat!, r.lon! < 0 ? r.lon! + 360 : r.lon!];
@@ -30,17 +32,33 @@ function useLeaflet(el: React.RefObject<HTMLDivElement>, onTileError: () => void
 }
 
 const markerStyle = (r: Institution): L.CircleMarkerOptions => ({
-  radius: 7, weight: 2, color: '#fff', fillOpacity: 0.95,
+  radius: 7, weight: 2, color: '#fff', fillOpacity: 0.95, bubblingMouseEvents: false, // a marker click must not also pick a location
   // Canvas renderer cannot resolve CSS variables; keep in sync with --school / --ece in styles.css.
   fillColor: r.cat === 'school' ? '#2563eb' : '#c2410c',
 });
 
 /** Clustered map that shares the list's filtered result (F07). Records without valid coordinates stay in the list only. */
-export function MapView({ records, onOpen }: { records: Institution[]; onOpen: (key: string) => void }) {
+export function MapView({ records, onOpen, center, radiusKm, distance, onPick }: {
+  records: Institution[]; onOpen: (key: string) => void;
+  /** Viewer location: drawn with its search radius, and the view is framed on the circle. */
+  center?: { lat: number; lon: number } | null; radiusKm?: number; distance?: (r: Institution) => number | null;
+  /** Clicking the map background picks a location. */
+  onPick?: (lat: number, lon: number) => void;
+}) {
   const el = useRef<HTMLDivElement>(null);
   const [tileFail, setTileFail] = useState(false);
   const map = useLeaflet(el, () => setTileFail(true));
   const cluster = useRef<L.MarkerClusterGroup | null>(null);
+  const here = useRef<L.LayerGroup | null>(null);
+  const pick = useRef(onPick);
+  pick.current = onPick;
+  useEffect(() => {
+    const m = map.current;
+    if (!m) return;
+    const h = (e: L.LeafletMouseEvent) => pick.current?.(e.latlng.lat, e.latlng.lng > 180 ? e.latlng.lng - 360 : e.latlng.lng);
+    m.on('click', h);
+    return () => { m.off('click', h); };
+  }, [map]);
   const located = records.filter((r) => r.lat !== null && r.lon !== null);
 
   useEffect(() => {
@@ -61,18 +79,29 @@ export function MapView({ records, onOpen }: { records: Institution[]; onOpen: (
       b.onclick = () => onOpen(r.key);
       const meta = document.createElement('div');
       meta.className = 'muted';
-      meta.textContent = `${CAT_LABEL[r.cat]} · ${r.type ?? t('类型未提供', 'type not provided')} · ${r.suburb ?? r.city ?? ''}`;
+      const d = distance?.(r);
+      meta.textContent = [CAT_LABEL[r.cat], r.type ?? t('类型未提供', 'type not provided'), r.suburb ?? r.city ?? '', d != null ? fmtKm(d) : '']
+        .filter(Boolean).join(' · ');
       div.append(b, meta);
       mk.bindPopup(div);
       return mk;
     });
     c.addLayers(markers);
-    if (markers.length) {
+    here.current?.remove();
+    here.current = null;
+    if (center) {
+      const p: [number, number] = [center.lat, center.lon < 0 ? center.lon + 360 : center.lon];
+      const circle = L.circle(p, { radius: (radiusKm ?? 10) * 1000, color: '#0f766e', weight: 1.5, fillOpacity: 0.06, interactive: false });
+      const dot = L.circleMarker(p, { radius: 8, weight: 3, color: '#fff', fillColor: '#0f766e', fillOpacity: 1 })
+        .bindTooltip(t('你的位置', 'You are here'));
+      here.current = L.layerGroup([circle, dot]).addTo(m);
+      m.fitBounds(circle.getBounds().pad(0.05));
+    } else if (markers.length) {
       const bounds = L.latLngBounds(located.map(pos));
       m.fitBounds(bounds.pad(0.05), { maxZoom: 15 });
     } else m.fitBounds(NZ_BOUNDS);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [records]);
+  }, [records, center?.lat, center?.lon, radiusKm]);
 
   return (
     <div className="map-wrap">
@@ -80,7 +109,7 @@ export function MapView({ records, onOpen }: { records: Institution[]; onOpen: (
       <div ref={el} className="map" role="region" aria-label={t('机构地图', 'Institution map')} />
       <p className="muted small">
         {t(`地图显示 ${located.length} 家；${records.length - located.length} 家缺少有效坐标未绘点（仍在列表中）。`, `${located.length} shown on the map; ${records.length - located.length} without valid coordinates are only in the list. `)}
-        <span className="legend"><i className="dot school" />School <i className="dot ece" />ECE</span>
+        <span className="legend"><i className="dot school" />School <i className="dot ece" />ECE{center && <><i className="dot here" />{t('你的位置', 'You')}</>}</span>
       </p>
     </div>
   );

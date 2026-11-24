@@ -141,6 +141,9 @@ select:disabled { opacity: 0.55; }
 .empty, .loading { text-align: center; padding: 48px 16px; color: var(--muted); }
 .banner { padding: 10px 14px; border-radius: 8px; margin-bottom: 10px; }
 .banner.warn { background: var(--warn-bg); color: var(--warn-ink); }
+.banner.info { background: var(--info-bg); color: var(--info-ink); }
+.nearest-title { margin: 20px 0 10px; }
+.map .leaflet-container, .map.leaflet-container { cursor: crosshair; }
 
 .map-wrap p { margin: 6px 0 0; }
 .map { height: min(70vh, 640px); border-radius: var(--radius); border: 1px solid var(--border); z-index: 0; }
@@ -149,6 +152,12 @@ select:disabled { opacity: 0.55; }
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin: 0 4px 0 8px; vertical-align: middle; }
 .dot.school { background: var(--school); }
 .dot.ece { background: var(--ece); }
+.dot.here { background: var(--accent); box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--accent); }
+.near-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.near-row .btn { flex: 1 1 auto; }
+.near-row select { width: auto; }
+.near-err { color: var(--bad-ink); font-size: 0.84rem; margin: 6px 0 0; }
+.dist { margin-left: auto; font-weight: 600; color: var(--accent); }
 .leaflet-popup-content .muted { font-size: 0.8rem; margin-top: 2px; }
 .leaflet-container { font: inherit; }
 

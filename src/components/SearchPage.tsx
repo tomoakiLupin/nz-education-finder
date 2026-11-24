@@ -1,16 +1,17 @@
 import { useMemo } from 'react';
 import type { Dataset } from '../types';
-import { applyFilters, optionsFor, pruneInvalid, DEFAULT_FILTERS, type Filters, type Option } from '../filters';
+import { applyFilters, distanceOf, optionsFor, parseNear, pruneInvalid, DEFAULT_FILTERS, RADII, type Filters, type Option } from '../filters';
 import { CAT_LABEL, districtLabel } from '../format';
 import { downloadCsv } from '../csv';
-import { MapView } from './MapView';
+import { MapView, fmtKm } from './MapView';
+import { level } from '../aewv';
 import { t } from '../i18n';
 
 const PAGE_SIZE = 50;
 
 interface Props { ds: Dataset; f: Filters; setF: (f: Filters) => void; open: (key: string) => void }
 
-function Select({ id, label, value, options, onChange, disabledHint }: {
+export function Select({ id, label, value, options, onChange, disabledHint }: {
   id: string; label: string; value: string; options: Option[]; onChange: (v: string) => void; disabledHint?: string;
 }) {
   const grouped = options.some((o) => o.group);
@@ -46,6 +47,7 @@ export function SearchPage({ ds, f, setF, open }: Props) {
   }, [ds, f]);
   const active = JSON.stringify({ ...f, view: '', sort: '', page: 0 }) !== JSON.stringify({ ...DEFAULT_FILTERS, view: '', sort: '', page: 0 });
   const group = ds.overlays.groups.find((g) => g.id === f.group);
+  const center = parseNear(f.near);
 
   return (
     <div className="search-layout">
@@ -68,6 +70,15 @@ export function SearchPage({ ds, f, setF, open }: Props) {
             {ds.overlays.groups.map((g) => <option key={g.id} value={g.id}>{g.name} ({g.members.length})</option>)}
           </select>
           {group && <p className="hint">{group.approved ? t('已批准', 'Approved') : t('草案，待负责人批准', 'Draft, awaiting approval')} · {group.definitionVersion}. {group.basis}</p>}
+        </div>
+        <div className="field">
+          <label htmlFor="aewv">{t('AEWV 认证雇主', 'AEWV accredited employer')}</label>
+          <select id="aewv" value={f.aewv} onChange={(e) => update({ aewv: e.target.value as Filters['aewv'] })}>
+            <option value="">{t('不限', 'Any')}</option>
+            <option value="strong">{t('仅中／高可信候选', 'Medium / high confidence only')}</option>
+            <option value="any">{t('有认证候选（含低可信）', 'Has a candidate (incl. low confidence)')}</option>
+          </select>
+          <p className="hint">{t('按机构名称与认证名单比对，是线索不是结论；联系前请用 INZ 官方查询核实。', 'Based on matching names to the accredited list — a lead, not a conclusion. Check INZ’s official search before contacting.')}</p>
         </div>
         <Select id="region" label="Region" value={f.region} options={opts.region} onChange={(v) => update({ region: v, district: '', suburb: '' })} />
         <Select id="district" label="City／District" value={f.district} options={opts.district} disabledHint={t('先选择 Region', 'Choose a Region first')} onChange={(v) => update({ district: v, suburb: '' })} />
@@ -93,6 +104,7 @@ export function SearchPage({ ds, f, setF, open }: Props) {
               <option value="name">{t('名称', 'Name')}</option>
               <option value="suburb">Suburb</option>
               <option value="roll">{t('在读人数', 'Roll')}</option>
+              {center && <option value="distance">{t('距离', 'Distance')}</option>}
             </select>
           </label>
           <button className="btn" disabled={!results.length} onClick={() => downloadCsv(ds, results)}>{t('导出 CSV', 'Export CSV')}</button>
@@ -101,10 +113,11 @@ export function SearchPage({ ds, f, setF, open }: Props) {
         {!results.length ? (
           <div className="empty">
             <p>{t('没有符合条件的机构。', 'No institutions match these filters.')}</p>
+            {center && f.radius < RADII[RADII.length - 1] && <p><button className="btn ghost" onClick={() => update({ radius: RADII.find((r) => r > f.radius)! })}>{t('扩大搜索半径', 'Widen the radius')}</button></p>}
             {active && <button className="btn" onClick={() => setF({ ...DEFAULT_FILTERS, view: f.view })}>{t('清除条件', 'Clear filters')}</button>}
           </div>
         ) : f.view === 'map' ? (
-          <MapView records={results} onOpen={open} />
+          <MapView records={results} onOpen={open} center={center} radiusKm={f.radius} distance={(r) => distanceOf(f, r)} />
         ) : (
           <>
             <ul className="cards">
@@ -116,6 +129,8 @@ export function SearchPage({ ds, f, setF, open }: Props) {
                       <span className="muted small">{r.type ?? t('类型未提供', 'Type not provided')}</span>
                       {r.sourceStatus === 'source_missing' && <span className="tag warn">{t('来源缺失·待核实', 'Missing from source · unverified')}</span>}
                       {ds.overlays.enrichments[r.key]?.careers && <span className="tag ok">Careers</span>}
+                      {ds.overlays.aewv.matches[r.key] && (() => { const l = level(ds.overlays.aewv.matches[r.key].level); return <span className={`tag ${l.cls}`}>{l.short}</span>; })()}
+                      {center && (() => { const d = distanceOf(f, r); return d != null && <span className="dist small">{fmtKm(d)}</span>; })()}
                     </div>
                     <h3>{r.name}</h3>
                     <p className="muted small">
