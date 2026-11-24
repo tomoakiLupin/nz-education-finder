@@ -77,6 +77,32 @@ test('AEWV: exact name is only medium (needs review); similar name is low', () =
   assert.equal(m['ece:3'].level, 'low');
 });
 
+test('AEWV: same distinctive name without generic words is medium where the employer is local, low elsewhere', () => {
+  const at = (key, name, city, suburb = null) => ({ key, name, cat: key.split(':')[0], city, suburb, district: null, region: 'Auckland Region' });
+  const local = (legal_name, trading_name, city) => ({ ...emp(legal_name, null, trading_name), city, industry: 'Health Care and Social Assistance / Social Assistance Services' });
+  const institutions = [
+    at('ece:10', 'Happy Kiddy Warkworth Early Learning Centre', 'Warkworth'),
+    at('ece:11', 'Sylvia Park Kindergarten', 'Auckland', 'Mount Wellington'),
+    at('ece:12', 'Hill Street Early Childhood Centre', 'Wellington', 'Thorndon'),
+    at('ece:13', 'Warkworth Kindergarten', 'Warkworth'), // place-only name: never matched this way
+    at('ece:14', 'Totara Hill Montessori', 'Matakana-Auckland'),
+  ];
+  const employers = [
+    local('Delight Education Limited', 'Happy Kiddy Early Education Center Warkworth', 'Warkworth'),
+    { ...emp('The Sylvia Park School Board', null, 'Sylvia Park School'), city: 'Auckland', industry: 'Education and Training' },
+    local('Hill Street Limited', 'Hill Street Limited', 'Auckland'),
+    local('Warkworth Early Learning Limited', '', 'Warkworth'),
+    local('Totara Hill Montessori 2025 Limited', '', 'Matakana'), // year in the company name is ignored
+  ];
+  const m = matchAewv({ institutions, employers, links: [], reviews: [] });
+  assert.equal(m['ece:10'].level, 'medium');
+  assert.equal(m['ece:10'].candidates[0].employer, 'Delight Education Limited');
+  assert.equal(m['ece:11'], undefined); // a kindergarten is not the school it is named after
+  assert.equal(m['ece:12'].level, 'low'); // registered in another city
+  assert.equal(m['ece:13'], undefined);
+  assert.equal(m['ece:14'].level, 'medium');
+});
+
 test('AEWV: multiple same-level candidates become a conflict; none stays absent (unknown)', () => {
   const institutions = [inst('ece:4', 'Sunshine Kids'), inst('ece:5', 'Unlisted Centre')];
   const employers = [emp('Sunshine Kids', '9429000000002'), emp('Sunshine Kids', '9429000000003')];

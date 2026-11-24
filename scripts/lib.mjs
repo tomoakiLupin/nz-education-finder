@@ -199,6 +199,14 @@ export function matchAewv({ institutions, employers, links, reviews }) {
     }
   });
   const brands = chainBrands(institutions, employers);
+  const core = { index: new Map(), places: new Set() };
+  for (const r of institutions) for (const v of [r.suburb, r.city, r.district, r.region]) for (const t of normalize(v).split(' ')) if (t) core.places.add(t);
+  employers.forEach((e, idx) => {
+    for (const n of [e.legal_name, e.trading_name]) {
+      const k = coreKey(n);
+      if (k) (core.index.get(k) ?? core.index.set(k, new Set()).get(k)).add(idx);
+    }
+  });
   const rejected = new Set(reviews.filter((r) => r.decision === 'rejected').map((r) => `${r.institution}|${empKey(r)}`));
   const confirmedReview = new Map(reviews.filter((r) => r.decision === 'confirmed').map((r) => [`${r.institution}|${empKey(r)}`, r]));
   const linksByInst = new Map();
@@ -231,6 +239,26 @@ export function matchAewv({ institutions, employers, links, reviews }) {
           ] });
         }
         break;
+      }
+    }
+    if (!cands.length) {
+      // Same distinctive name once generic words are dropped, in the same order: "Happy Kiddy Warkworth Early Learning
+      // Centre" ≙ trading name "Happy Kiddy Early Education Center Warkworth". Names made only of place words are skipped
+      // ("Ruawai Kindergarten" vs "Ruawai College Board"), as are kindergarten↔school/college pairs and non-education
+      // employers. Medium only when the employer's registered city is where the institution is; otherwise low.
+      const k = coreKey(inst.name);
+      const hit = k && k.includes(' ') && !k.split(' ').every((w) => core.places.has(w)) ? core.index.get(k) : null;
+      for (const idx of hit ?? []) {
+        const e = employers[idx];
+        if (e.industry && !/education|child|social assistance|preschool/i.test(e.industry)) continue;
+        if ([e.legal_name, e.trading_name].every((n) => coreKey(n) !== k || kindConflict(inst, n))) continue;
+        const local = cityMatches(inst, e.city);
+        cands.push({ idx, level: local ? 'medium' : 'low', reasons: [
+          bi('去掉通用词（Early、Learning、Centre、Education 等）后，雇主名称／商号与机构名称一致', 'Employer or trading name matches the institution name once generic words (Early, Learning, Centre, Education…) are ignored'),
+          local
+            ? bi('雇主登记城市与机构所在地一致；尚未确认机构与该雇主（NZBN）的对应关系，需人工复核', 'Employer is registered where the institution is; the link to this employer (NZBN) is not yet confirmed and needs manual review')
+            : bi('但雇主登记城市与机构所在地不同，仅为候选', 'But the employer is registered elsewhere, so this is a candidate only'),
+        ] });
       }
     }
     if (!cands.length) {
@@ -327,6 +355,27 @@ function chainBrands(institutions, employers) {
     }
   });
   return out;
+}
+
+/** Distinctive words of a name, in order (generic/legal words and years such as "2025 Limited" dropped). */
+const coreKey = (s) => tokens(s).filter((t) => !/^(19|20)\d\d$/.test(t)).join(' ');
+
+// A kindergarten is not the school it is named after, and a "School" is not a "College".
+const KIND_WORDS = ['school', 'college', 'kindergarten'];
+const kinds = (s) => { const w = new Set(normalize(s).split(' ').map((x) => (x === 'kindy' ? 'kindergarten' : x))); return KIND_WORDS.filter((x) => w.has(x)); };
+function kindConflict(inst, name) {
+  const a = kinds(inst.name), b = kinds(name);
+  if (inst.cat === 'ece' && (b.includes('school') || b.includes('college'))) return true;
+  if (inst.cat === 'school' && b.includes('kindergarten')) return true;
+  return a.length > 0 && b.length > 0 && !a.some((x) => b.includes(x));
+}
+
+/** Employer's registered city names a place the institution is in (suburb, city or district). */
+function cityMatches(inst, city) {
+  const c = normalize(city).split(' ').filter(Boolean);
+  if (!c.length) return false;
+  const here = new Set([inst.suburb, inst.city, inst.district].flatMap((v) => normalize(String(v ?? '').replace(/ (Local Board Area|District|City)$/, '')).split(' ')).filter(Boolean));
+  return c.every((w) => here.has(w));
 }
 
 function empKey(e) {
