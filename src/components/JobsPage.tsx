@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ArchivedJob, Dataset } from '../types';
 import { level, visaKinds, visaLabel } from '../aewv';
 import { CAT_LABEL, fmtDate, normalize, safeHref } from '../format';
-import { JOB_SITES } from '../config';
+import { JOB_SITES, sectorOf } from '../config';
 import { t } from '../i18n';
 
 const PAGE_SIZE = 40;
@@ -199,16 +199,22 @@ function Alerts() {
   );
 }
 
-function OtherSites() {
+function OtherSites({ f }: { f: JobFilters }) {
+  const q = { keywords: f.q.trim() || undefined, region: f.region || null, sector: sectorOf(f.sector) };
+  const ctx = [f.region, f.sector && sectorLabel(f.sector), f.q.trim() && `“${f.q.trim()}”`].filter(Boolean).join(' · ');
   return (
     <div className="panel other-sites">
       <h2>{t('其他招聘网站', 'Other job sites')}</h2>
-      <p className="hint">{t('SEEK 和 Trade Me 不允许第三方网站抓取或转载职位，本站无法代为监控。可在各网站开启职位提醒，看到学校名后回本站“机构目录”查认证情况。', 'SEEK and Trade Me do not allow other sites to collect or republish their listings, so this site cannot watch them. Turn on their own alerts, then look the school up in the Directory here to check accreditation.')}</p>
+      <p className="hint">
+        {t('SEEK 和 Trade Me 不允许第三方网站抓取或转载职位，本站无法代为监控。下面的链接直接打开它们自己的搜索页', 'SEEK and Trade Me do not allow other sites to collect or republish their listings, so this site cannot watch them. The links below open their own search pages')}
+        {ctx ? t(`，已按当前条件（${ctx}）预填`, `, pre-filled with your current filters (${ctx})`) : ''}
+        {t('；可在那里开启职位提醒，看到学校名后回本站「机构目录」或「地图」查认证情况。', '. Turn on their alerts there, then look the school up in the Directory or Map here to check accreditation.')}
+      </p>
       <ul className="site-list">
         {JOB_SITES.map((s) => (
           <li key={s.id}>
-            <a href={safeHref(s.entry)} target="_blank" rel="noopener noreferrer nofollow">{s.name} ↗</a>
-            <span className="small muted"> · {alertHowto(s.id)}</span>
+            <a href={safeHref(s.id === 'gazette' ? s.entry : s.deepLink(s.id === 'trademe' ? { ...q, keywords: undefined } : q))} target="_blank" rel="noopener noreferrer nofollow">{s.name} ↗</a>
+            <span className="small muted"> · {alertHowto(s.id)}{s.id === 'trademe' && q.keywords ? t('（Trade Me 链接只预填类别和地区）', ' (Trade Me link fills in category and region only)') : ''}</span>
           </li>
         ))}
       </ul>
@@ -332,7 +338,7 @@ export function JobsPage({ ds, f, setF, archive = false }: Props) {
             <p className="hint source-line">
               {t('职位来自', 'Vacancies from')} <a href={safeHref(src.url)} target="_blank" rel="noopener noreferrer">Education Gazette</a> (Ministry of Education){t('，本站于 ', ', fetched ')}{fmtDate(src.fetchedAt, true)}{t(' 获取，每小时检查更新。点职位标题查看详情、签证要求、学校位置和认证情况。', ', checked hourly. Open a title for details, visa requirements, school location and accreditation.')}
             </p>
-            <OtherSites />
+            <OtherSites f={f} />
           </>
         )}
 

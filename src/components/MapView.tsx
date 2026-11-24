@@ -38,10 +38,10 @@ const markerStyle = (r: Institution): L.CircleMarkerOptions => ({
 });
 
 /** Clustered map that shares the list's filtered result (F07). Records without valid coordinates stay in the list only. */
-export function MapView({ records, onOpen, center, radiusKm, distance, onPick }: {
+export function MapView({ records, onOpen, center, centerLabel, radiusKm, distance, onPick }: {
   records: Institution[]; onOpen: (key: string) => void;
   /** Viewer location: drawn with its search radius, and the view is framed on the circle. */
-  center?: { lat: number; lon: number } | null; radiusKm?: number; distance?: (r: Institution) => number | null;
+  center?: { lat: number; lon: number } | null; centerLabel?: string; radiusKm?: number; distance?: (r: Institution) => number | null;
   /** Clicking the map background picks a location. */
   onPick?: (lat: number, lon: number) => void;
 }) {
@@ -93,7 +93,7 @@ export function MapView({ records, onOpen, center, radiusKm, distance, onPick }:
       const p: [number, number] = [center.lat, center.lon < 0 ? center.lon + 360 : center.lon];
       const circle = L.circle(p, { radius: (radiusKm ?? 10) * 1000, color: '#0f766e', weight: 1.5, fillOpacity: 0.06, interactive: false });
       const dot = L.circleMarker(p, { radius: 8, weight: 3, color: '#fff', fillColor: '#0f766e', fillOpacity: 1 })
-        .bindTooltip(t('你的位置', 'You are here'));
+        .bindTooltip(centerLabel || t('你的位置', 'You are here'));
       here.current = L.layerGroup([circle, dot]).addTo(m);
       m.fitBounds(circle.getBounds().pad(0.05));
     } else if (markers.length) {
@@ -101,7 +101,7 @@ export function MapView({ records, onOpen, center, radiusKm, distance, onPick }:
       m.fitBounds(bounds.pad(0.05), { maxZoom: 15 });
     } else m.fitBounds(NZ_BOUNDS);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [records, center?.lat, center?.lon, radiusKm]);
+  }, [records, center?.lat, center?.lon, centerLabel, radiusKm]);
 
   return (
     <div className="map-wrap">
@@ -109,7 +109,7 @@ export function MapView({ records, onOpen, center, radiusKm, distance, onPick }:
       <div ref={el} className="map" role="region" aria-label={t('机构地图', 'Institution map')} />
       <p className="muted small">
         {t(`地图显示 ${located.length} 家；${records.length - located.length} 家缺少有效坐标未绘点（仍在列表中）。`, `${located.length} shown on the map; ${records.length - located.length} without valid coordinates are only in the list. `)}
-        <span className="legend"><i className="dot school" />School <i className="dot ece" />ECE{center && <><i className="dot here" />{t('你的位置', 'You')}</>}</span>
+        <span className="legend"><i className="dot school" />School <i className="dot ece" />ECE{center && <><i className="dot here" />{centerLabel || t('你的位置', 'You')}</>}</span>
       </p>
     </div>
   );

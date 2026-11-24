@@ -156,6 +156,18 @@ select:disabled { opacity: 0.55; }
 .near-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .near-row .btn { flex: 1 1 auto; }
 .near-row select { width: auto; }
+.place-search { position: relative; display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; }
+.place-search input[type='search'] { flex: 1 1 140px; min-width: 0; }
+.place-search .btn { flex: 0 0 auto; }
+.place-list {
+  position: absolute; top: 40px; left: 0; right: 0; z-index: 1000; list-style: none; margin: 0; padding: 4px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 20px rgb(16 24 40 / 18%);
+  max-height: 320px; overflow-y: auto;
+}
+.place-list li { padding: 2px 0; }
+.place-list li.muted, .place-list li.near-err { padding: 6px 8px; margin: 0; }
+.place-list button { font: inherit; width: 100%; text-align: left; background: none; border: 0; color: var(--text); padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+.place-list button:hover, .place-list button:focus-visible { background: var(--accent-soft); }
 .near-err { color: var(--bad-ink); font-size: 0.84rem; margin: 6px 0 0; }
 .dist { margin-left: auto; font-weight: 600; color: var(--accent); }
 .leaflet-popup-content .muted { font-size: 0.8rem; margin-top: 2px; }

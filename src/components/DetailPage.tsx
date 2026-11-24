@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { Dataset, Institution } from '../types';
 import { level, visaKinds, visaLabel } from '../aewv';
 import { CAT_LABEL, daysSince, displayHost, districtLabel, eroUrl, fmtDate, safeHref } from '../format';
-import { JOB_SITES, REPO_URL, STALE_DAYS } from '../config';
+import { JOB_SITES, REPO_URL, STALE_DAYS, sectorOfInstitution, type JobSector } from '../config';
 import { careersOf, websiteOf } from '../data';
 import { t, tx } from '../i18n';
 import { MiniMap } from './MapView';
@@ -114,7 +114,17 @@ function PastJobs({ ds, r }: { ds: Dataset; r: Institution }) {
   );
 }
 
-export function JobSearch({ r, title }: { r: Pick<Institution, 'name' | 'cat' | 'suburb' | 'city'>; title?: string }) {
+export function JobSearch({ r, title, sector }: {
+  r: Pick<Institution, 'name' | 'cat' | 'suburb' | 'city'> & Partial<Pick<Institution, 'region' | 'type'>>; title?: string; sector?: JobSector;
+}) {
+  const sec = sector !== undefined ? sector : sectorOfInstitution(r);
+  const site = (id: string) => JOB_SITES.find((s) => s.id === id)!;
+  const links = [
+    { href: site('gazette').deepLink({ keywords: r.name }), label: t(`Education Gazette：搜「${r.name}」`, `Education Gazette: “${r.name}”`) },
+    { href: site('seek').deepLink({ keywords: r.name }), label: t(`SEEK：搜「${r.name}」`, `SEEK: “${r.name}”`) },
+    { href: site('seek').deepLink({ sector: sec, region: r.region }), label: t(`SEEK：${r.region ? `${r.region} 的` : ''}同类职位`, `SEEK: similar jobs${r.region ? ` in ${r.region}` : ''}`) },
+    { href: site('trademe').deepLink({ sector: sec, region: r.region }), label: t(`Trade Me：${r.region ? `${r.region} 的` : ''}教育类职位`, `Trade Me: education jobs${r.region ? ` in ${r.region}` : ''}`) },
+  ];
   const keywords = [...(title ? [`${title} ${r.name}`] : []), r.name, `${r.name} teacher`, `${r.cat === 'ece' ? 'early childhood teacher' : 'teacher'} ${r.suburb ?? r.city ?? ''}`.trim()];
   const [copied, setCopied] = useState<string | null>(null);
   const copy = async (k: string) => {
@@ -129,10 +139,8 @@ export function JobSearch({ r, title }: { r: Pick<Institution, 'name' | 'cat' | 
           <button key={k} className="chip" onClick={() => copy(k)} title={t('复制关键词', 'Copy keyword')}>{copied === k ? t('已复制 ✓', 'Copied ✓') : k}</button>
         ))}
       </div>
-      <ul className="links">
-        {JOB_SITES.map((s) => (
-          <li key={s.id}><Ext href={s.deepLink ? s.deepLink(keywords[0]) : s.entry}>{s.name} ↗</Ext></li>
-        ))}
+      <ul className="site-list">
+        {links.map((l) => <li key={l.href}><Ext href={l.href}>{l.label} ↗</Ext></li>)}
       </ul>
     </section>
   );

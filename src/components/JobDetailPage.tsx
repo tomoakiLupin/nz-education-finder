@@ -7,6 +7,7 @@ import { websiteOf } from '../data';
 import { t } from '../i18n';
 import { MiniMap } from './MapView';
 import { Aewv, Ext, JobSearch, Row } from './DetailPage';
+import { sectorOf } from '../config';
 import { JobCard, closed, daysLeft } from './JobsPage';
 
 const list = (xs: string[] | undefined) => (xs?.length ? xs.join(t('，', ', ')) : null);
@@ -141,7 +142,7 @@ export function JobDetailPage({ ds, j }: { ds: Dataset; j: ArchivedJob }) {
             </section>
           )}
 
-          <JobSearch r={r ?? { name: j.institute, cat: 'school', suburb: null, city: j.region }} title={j.title} />
+          <JobSearch r={r ?? { name: j.institute, cat: 'school', suburb: null, city: j.region, region: j.region }} title={j.title} sector={sectorOf(j.sectors[0])} />
 
           {others.length > 0 && (
             <section className="panel">

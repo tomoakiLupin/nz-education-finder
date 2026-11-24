@@ -5,6 +5,7 @@ import { CAT_LABEL, districtLabel } from '../format';
 import { MapView, fmtKm } from './MapView';
 import { Select } from './SearchPage';
 import { level } from '../aewv';
+import { PlaceSearch } from './PlaceSearch';
 import { t } from '../i18n';
 
 // The map page shares the directory's filter model, but starts with "AEWV medium / high only" switched on.
@@ -38,7 +39,7 @@ export function MapPage({ ds, f, setF, open }: Props) {
     for (const r of applyFilters(ds, { ...f, cat: 'all', type: '' })) { c.all++; c[r.cat]++; }
     return c;
   }, [ds, f]);
-  const setCenter = (lat: number, lon: number) => update({ near: formatNear(lat, lon) });
+  const setCenter = (lat: number, lon: number, at = '') => update({ near: formatNear(lat, lon), at });
 
   const locate = () => {
     if (!('geolocation' in navigator)) { setErr(t('此浏览器不支持定位，可以直接在地图上点击选择位置。', 'This browser does not support location; click the map to pick a spot instead.')); return; }
@@ -60,18 +61,19 @@ export function MapPage({ ds, f, setF, open }: Props) {
     <div className="search-layout">
       <aside className="filters" aria-label={t('地图筛选', 'Map filters')}>
         <div className="field">
-          <label htmlFor="radius">{t('以我的位置为中心', 'Centred on my location')}</label>
+          <label htmlFor="radius">{t('中心位置', 'Centre')}</label>
+          <PlaceSearch ds={ds} onPick={(p) => setCenter(p.lat, p.lon, p.label)} />
           <div className="near-row">
             <button className={center ? 'btn ghost' : 'btn'} onClick={locate} disabled={busy}>
-              {busy ? t('定位中…', 'Locating…') : center ? t('重新定位', 'Locate again') : t('📍 定位我的位置', '📍 Use my location')}
+              {busy ? t('定位中…', 'Locating…') : center && !f.at ? t('重新定位', 'Locate again') : t('📍 定位我的位置', '📍 Use my location')}
             </button>
             <select id="radius" value={f.radius} onChange={(e) => update({ radius: Number(e.target.value) })} aria-label={t('搜索半径', 'Search radius')}>
               {RADII.map((r) => <option key={r} value={r}>{r} km</option>)}
             </select>
           </div>
-          {center && <button className="linklike small" onClick={() => update({ near: '' })}>{t('取消位置，显示全国', 'Clear location, show all of NZ')}</button>}
+          {center && <button className="linklike small" onClick={() => update({ near: '', at: '' })}>{t('取消位置，显示全国', 'Clear location, show all of NZ')}</button>}
           {err && <p className="near-err" role="alert">{err}</p>}
-          <p className="hint">{t('也可以直接在地图空白处点击，把那里设为中心。位置只在你的浏览器里使用，不会上传；约精确到 100 米。', 'You can also click anywhere on the map to centre there. Your location stays in your browser and is never uploaded; rounded to about 100 m.')}</p>
+          <p className="hint">{t('也可以直接在地图空白处点击，把那里设为中心。定位得到的位置只在你的浏览器里使用，不会上传；约精确到 100 米。', 'You can also click anywhere on the map to centre there. A located position stays in your browser and is never uploaded; rounded to about 100 m.')}</p>
         </div>
         <div className="seg" role="tablist" aria-label={t('目录类别', 'Directory category')}>
           {(['all', 'school', 'ece'] as const).map((c) => (
@@ -96,15 +98,15 @@ export function MapPage({ ds, f, setF, open }: Props) {
         <div className="toolbar">
           <strong>
             {center
-              ? t(`${f.radius} km 内 ${results.length.toLocaleString()} 家`, `${results.length.toLocaleString()} within ${f.radius} km`)
+              ? t(`${f.at ? `「${f.at}」` : ''}${f.radius} km 内 ${results.length.toLocaleString()} 家`, `${results.length.toLocaleString()} within ${f.radius} km${f.at ? ` of ${f.at}` : ''}`)
               : t(`全国 ${results.length.toLocaleString()} 家`, `${results.length.toLocaleString()} across NZ`)}
           </strong>
           {center && !results.length && f.radius < RADII[RADII.length - 1] && (
             <button className="btn ghost" onClick={() => update({ radius: RADII.find((r) => r > f.radius)! })}>{t('扩大搜索半径', 'Widen the radius')}</button>
           )}
         </div>
-        {!center && <div className="banner info">{t('点「📍 定位我的位置」，或在地图上点一下，即可查看附近的机构并按距离排序。', 'Press “📍 Use my location” or click the map to see nearby institutions sorted by distance.')}</div>}
-        <MapView records={results} onOpen={open} center={center} radiusKm={f.radius} distance={(r) => distanceOf(f, r)} onPick={setCenter} />
+        {!center && <div className="banner info">{t('输入地址／Suburb／学校名，或点「📍 定位我的位置」，或在地图上点一下，即可查看附近的机构并按距离排序。', 'Type an address, suburb or school, press “📍 Use my location”, or click the map to see nearby institutions sorted by distance.')}</div>}
+        <MapView records={results} onOpen={open} center={center} radiusKm={f.radius} distance={(r) => distanceOf(f, r)} centerLabel={f.at} onPick={(lat, lon) => setCenter(lat, lon, t('地图上选的点', 'Point picked on map'))} />
 
         {center && results.length > 0 && (
           <>

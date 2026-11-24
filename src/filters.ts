@@ -12,6 +12,7 @@ export interface Filters {
   missing: boolean; // include records no longer in the latest source batch
   aewv: '' | 'any' | 'strong'; // any AEWV candidate · medium/high confidence only
   near: string; // "lat,lon" of the viewer (rounded), '' = no distance filter
+  at: string; // label of a searched place for `near` ('' = the viewer's own location)
   radius: number; // km around `near`
   sort: 'name' | 'suburb' | 'roll' | 'distance';
   page: number;
@@ -19,13 +20,14 @@ export interface Filters {
 }
 
 export const DEFAULT_FILTERS: Filters = {
-  q: '', cat: 'all', region: '', district: '', suburb: '', type: '', group: '', missing: false, aewv: '', near: '', radius: 10, sort: 'name', page: 1, view: 'list',
+  q: '', cat: 'all', region: '', district: '', suburb: '', type: '', group: '', missing: false, aewv: '', near: '', at: '', radius: 10, sort: 'name', page: 1, view: 'list',
 };
 
 export function filtersFromQuery(qs: string): Filters {
   const p = new URLSearchParams(qs);
   const f = { ...DEFAULT_FILTERS };
   for (const k of ['q', 'region', 'district', 'suburb', 'type', 'group'] as const) f[k] = p.get(k) ?? '';
+  f.at = (p.get('at') ?? '').slice(0, 120);
   const cat = p.get('cat');
   if (cat === 'school' || cat === 'ece') f.cat = cat;
   const sort = p.get('sort');
