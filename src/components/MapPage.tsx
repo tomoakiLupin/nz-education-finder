@@ -42,19 +42,22 @@ export function MapPage({ ds, f, setF, open }: Props) {
   const setCenter = (lat: number, lon: number, at = '') => update({ near: formatNear(lat, lon), at });
 
   const locate = () => {
-    if (!('geolocation' in navigator)) { setErr(t('此浏览器不支持定位，可以直接在地图上点击选择位置。', 'This browser does not support location; click the map to pick a spot instead.')); return; }
+    if (!('geolocation' in navigator)) { setErr(t('此浏览器不支持定位，可以输入地址或直接在地图上点击选择位置。', 'This browser does not support location; type an address or click the map instead.')); return; }
+    if (!window.isSecureContext) { setErr(t('定位只能在 https 页面使用。', 'Location only works on https pages.')); return; }
     setBusy(true); setErr(null);
-    navigator.geolocation.getCurrentPosition(
-      (p) => { setBusy(false); setCenter(p.coords.latitude, p.coords.longitude); },
-      (e) => {
-        setBusy(false);
-        setErr(e.code === e.PERMISSION_DENIED
-          ? t('定位权限被拒绝。请在浏览器网站设置中允许位置访问，或直接在地图上点击选择位置。', 'Location permission was denied. Allow it in your browser’s site settings, or click the map to pick a spot.')
-          : e.code === e.TIMEOUT ? t('定位超时，请重试，或在地图上点击选择位置。', 'Locating timed out. Try again, or click the map to pick a spot.')
-          : t('无法获取当前位置，可以在地图上点击选择位置。', 'Could not get your location; click the map to pick a spot.'));
-      },
-      { enableHighAccuracy: false, timeout: 15000, maximumAge: 5 * 60_000 },
-    );
+    const ok = (p: GeolocationPosition) => { setBusy(false); setCenter(p.coords.latitude, p.coords.longitude); };
+    const fail = (e: GeolocationPositionError) => {
+      setBusy(false);
+      const why = e.message ? ` (${e.message})` : '';
+      setErr(e.code === e.PERMISSION_DENIED
+        ? t('浏览器或系统拒绝了定位。请检查：① 浏览器地址栏左侧的网站设置里允许“位置”；② Windows：设置 → 隐私和安全性 → 位置，打开“位置服务”和“允许桌面应用访问你的位置”；Mac：系统设置 → 隐私与安全性 → 定位服务，允许浏览器。也可以直接输入地址。', 'Location was blocked by the browser or the system. Check ① the site settings next to the address bar allow Location; ② Windows: Settings → Privacy & security → Location, turn on Location services and “Let desktop apps access your location”; Mac: System Settings → Privacy & Security → Location Services, allow your browser. Or just type an address.') + why
+        : t('暂时拿不到位置（电脑通常要靠 Wi‑Fi 定位，Windows 的“位置服务”需要打开）。可以重试，或直接输入地址／在地图上点击。', 'Could not get a position right now (computers usually locate via Wi‑Fi, and Windows Location services must be on). Try again, or type an address / click the map.') + why);
+    };
+    // Fast network-based fix first; if that is unavailable or slow, try once more allowing GPS / high accuracy.
+    navigator.geolocation.getCurrentPosition(ok, (e) => {
+      if (e.code === e.PERMISSION_DENIED) return fail(e);
+      navigator.geolocation.getCurrentPosition(ok, fail, { enableHighAccuracy: true, timeout: 25000, maximumAge: 0 });
+    }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 10 * 60_000 });
   };
 
   return (
