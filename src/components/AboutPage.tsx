@@ -31,8 +31,8 @@ export function AboutPage({ ds }: { ds: Dataset }) {
               'Archive: closed or withdrawn vacancies are kept in data/archive/jobs.jsonl in the repository (listing facts, ad text, visa sentences, first-seen and delisted dates) so schools’ hiring can be compared over time. Started 2026-10-27; ad texts kept from 2026-10-28.')}</li>
             <li>{t('联系方式：存档的广告正文去掉了邮箱和电话，也不读取广告页的联系人栏。Gazette 对邮箱做了防采集处理；本站和仓库都是公开的，把学校员工的联系方式批量存档再公开不合适。联系方式请在原文中查看。',
               'Contact details: email addresses and phone numbers are removed from archived ad texts, and the contact block of the ad page is not read. The Gazette protects emails against harvesting, and this site and its repository are public, so compiling staff contact details here would not be appropriate. See the original ad for contacts.')}</li>
-            <li>{t('ERO 评估报告：机构页和职位页链接到 Education Review Office 上该校／幼儿园的页面（按教育部机构编号）。没有报告的机构会跳到 ERO 搜索页。',
-              'ERO reports: institution and vacancy pages link to the Education Review Office page for the school or ECE service (by Ministry institution number). Institutions without a report open ERO’s search.')}</li>
+            <li>{t('ERO 评估报告：机构页摘录 Education Review Office 网站上该校／幼儿园最新一份报告的结论（幼儿园质量评级、合规审查结果、学校报告的各项结论），并链接原文和以往报告。每周自动检查一部分机构，约一个月轮完一遍；以 ERO 原文为准。',
+              'ERO reports: institution pages summarise the judgements of the latest Education Review Office report (ECE quality ratings, assurance-review results, school report findings) and link to the full and earlier reports. A share of institutions is re-checked each week, about once a month each; ERO’s own report is authoritative.')}</li>
           </ul>
           <p>
             <strong>{t('SEEK 和 Trade Me 为什么没有接入：', 'Why SEEK and Trade Me are not included: ')}</strong>

@@ -54,7 +54,7 @@
 
 **归档**：`data/archive/jobs.jsonl`（提交到仓库）保存所有见过的职位：职位信息、广告正文（`text`，下架后才首次读取的为 `null`）、签证句子、`firstSeen`、`delisted`（下架日期）。部署流程有变化时自动提交；每行只在职位新增、修改或下架时变化。网站有“历史（已归档）”列表，机构详情页显示该校历史招聘记录。
 
-**ERO 报告**：机构页和职位页按教育部机构编号链接 `https://www.ero.govt.nz/institution/<编号>/<名称>`，没有报告的机构 ERO 会跳到搜索页。
+**ERO 报告**：机构页显示该校／幼儿园最新一份 ERO 报告的结论：幼儿园 Akarangi 质量评估的 4 个领域评级和健康安全结论（从 PDF 第一页的评级表读取，被选中的格子是白字，用 poppler 的 `pdftohtml` 判断）、Akanuku 合规审查的 4 项标准、学校报告的各项结论，以及以往报告和国际学生评估链接。`scripts/fetch-ero.mjs` 每周随「Update official data」运行：逐个读取 `https://www.ero.govt.nz/institution/<编号>/<名称>`，每秒最多 1 个请求，先读从未读过的、再读最久没更新的（超过 30 天），每次最多 2,500 个，结果存 `data/ero.json`（提交到仓库），部署时拆成每个机构一个小文件 `data/ero/<类别>-<编号>.json`，打开机构页时才加载。运营集团（如 Educare、Playcentre、幼儿园协会）统一评估的园所显示集团报告；ERO 上没有单独页面的机构显示 ERO 搜索链接。不使用 ERO 网站的 `/api` 接口。
 
 **联系人不单独保存**：不读取广告页的联系人栏，正文里的邮箱和电话会去掉；正文里写到的人名保留。Gazette 对邮箱做了防采集处理，本仓库和网站是公开的，批量存档员工个人联系方式不合适；需要的话应放在带鉴权的私有存储中（见 PRD 第二阶段）。
 
@@ -110,6 +110,7 @@ npm install
 npm run import                     # 拉取官方目录到 public/data/
 node scripts/fetch-aewv.mjs         # 下载 AEWV 认证雇主快照
 node scripts/fetch-jobs.mjs         # 下载 Education Gazette 在招职位
+node scripts/fetch-ero.mjs --limit 200  # 读取 ERO 报告（需要 poppler 的 pdftohtml 才能读 PDF 评级）
 node scripts/build-overlays.mjs    # 生成 overlays.json
 npm run dev
 npm test                           # 导入／合并／AEWV 匹配单元测试

@@ -245,3 +245,11 @@ h3.year { font-size: 0.9rem; color: var(--muted); margin: 12px 0 4px; }
 .ad-text h3 { font-size: 1rem; margin: 1.1em 0 .3em; }
 .ad-text h3:first-child { margin-top: 0; }
 .ad-text p { margin: 0 0 .55em; line-height: 1.6; }
+
+/* ERO review panel */
+.ero-table { width: 100%; border-collapse: collapse; margin: 6px 0 4px; table-layout: fixed; }
+.ero-table td { white-space: normal; overflow-wrap: anywhere; }
+.ero-table th, .ero-table td { text-align: left; vertical-align: top; padding: 6px 8px 6px 0; border-top: 1px solid var(--border); font-weight: 400; }
+.ero-table th { width: 36%; color: var(--muted); font-size: 0.88rem; }
+.ero details ul { margin: 6px 0 0; padding-left: 18px; }
+@media (max-width: 560px) { .ero-table th { width: 50%; } }

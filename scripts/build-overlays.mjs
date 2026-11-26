@@ -129,6 +129,27 @@ function atomFeed({ id, title, jobs, matches, records, fetchedAt }) {
 `;
 }
 
+/**
+ * ERO reports collected by scripts/fetch-ero.mjs (data/ero.json), served one small file per institution
+ * (data/ero/<cat>-<id>.json) and loaded only when its detail page is opened. Missing cache → no files.
+ */
+async function writeEro(known) {
+  const file = new URL('ero.json', DATA);
+  const dir = new URL('ero/', OUT);
+  await rm(dir, { recursive: true, force: true });
+  if (!existsSync(file)) return { files: 0, withReport: 0 };
+  const { items } = await readJson(file);
+  await mkdir(dir, { recursive: true });
+  let files = 0, withReport = 0;
+  for (const [key, e] of Object.entries(items)) {
+    if (!known.has(key)) continue;
+    await writeFile(new URL(`${key.replace(':', '-')}.json`, dir), JSON.stringify(e));
+    files++;
+    if (e.title) withReport++;
+  }
+  return { files, withReport };
+}
+
 async function main() {
   const { records } = await readJson(new URL('institutions.json', OUT));
   const known = new Set(records.map((r) => r.key));
@@ -155,6 +176,7 @@ async function main() {
   await rm(adDir, { recursive: true, force: true });
   await mkdir(adDir, { recursive: true });
   for (const a of ads) await writeFile(new URL(`${a.id}.json`, adDir), JSON.stringify(a));
+  const ero = await writeEro(known);
   if (jobs.source) {
     const common = { matches, records, fetchedAt: jobs.source.fetchedAt };
     await writeFile(new URL('feed.xml', OUT), atomFeed({ ...common, id: 'gazette-all', title: 'Education Gazette 新职位', jobs: jobs.jobs }));
@@ -163,6 +185,7 @@ async function main() {
   const linked = jobs.jobs.filter((j) => j.key);
   console.log(`jobs: ${jobs.jobs.length} open, ${archive.jobs.length} archived, ${linked.length} linked to institutions, ${linked.filter((j) => matches[j.key]).length} with AEWV candidates`);
   const levels = Object.values(matches).reduce((a, m) => ((a[m.level] = (a[m.level] ?? 0) + 1), a), {});
+  console.log(`ero: ${ero.files} institution files, ${ero.withReport} with a report`);
   console.log(`enrichments: ${Object.keys(enrich.out).length} institutions; groups: ${overlays.groups.map((g) => `${g.id}=${g.members.length}`).join(', ')}; aewv employers: ${aewv.employers.length}, matches: ${JSON.stringify(levels)}`);
   if (enrich.problems.length) {
     console.error('Enrichment problems:\n  ' + enrich.problems.join('\n  '));

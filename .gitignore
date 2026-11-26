@@ -11,6 +11,7 @@ public/data/jobs.json
 public/data/archive.json
 public/data/feed*.xml
 public/data/ad/
+public/data/ero/
 *.tsbuildinfo
 
 # AEWV snapshot: licence NOASSERTION, fetched at deploy time, never committed

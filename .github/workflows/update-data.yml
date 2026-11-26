@@ -22,15 +22,22 @@ jobs:
           node-version: 22
       # Fails without touching the committed snapshot if the source is unreachable or the batch looks broken.
       - run: node scripts/import-directories.mjs
+      # Latest ERO report per institution: polite incremental crawl (one page/s, never-checked and oldest first).
+      # pdftohtml (poppler) reads the judgement table of Akarangi PDF reports. A failure here never blocks the import.
+      - run: sudo apt-get install -y --no-install-recommends poppler-utils
+        continue-on-error: true
+      - run: node scripts/fetch-ero.mjs --limit 2500 --minutes 70
+        continue-on-error: true
       - name: Commit new batch
         run: |
-          if git diff --quiet -- public/data; then
+          git add public/data
+          if [ -f data/ero.json ]; then git add data/ero.json; fi
+          if git diff --cached --quiet; then
             echo "No changes."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add public/data
-          git commit -m "data: import official School/ECE directories $(date -u +%Y-%m-%d)"
+          git commit -m "data: official School/ECE directories and ERO reports $(date -u +%Y-%m-%d)"
           git pull --rebase
           git push

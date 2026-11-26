@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalize, safeUrl, validCoord, toPublicRecord, mergeBatch, parseCsv, matchAewv, matchJobs, extractVisa, htmlToText, parseGazetteVacancy, gazetteSitemap, refToId, redactContacts } from './lib.mjs';
+import { normalize, safeUrl, validCoord, toPublicRecord, mergeBatch, parseCsv, matchAewv, matchJobs, extractVisa, htmlToText, parseGazetteVacancy, gazetteSitemap, refToId, redactContacts, eroDate, parseEroPage, parseAkarangiXml } from './lib.mjs';
 
 test('normalize keeps matching tolerant of macrons, case and spacing', () => {
   assert.equal(normalize('  Kaipātiki   Kindergarten '), 'kaipatiki kindergarten');
@@ -240,4 +240,58 @@ test('extractVisa treats negative sponsorship statements as no-overseas', () => 
 test('redactContacts removes emails and phone numbers but keeps other numbers', () => {
   const t = 'Contact Jo Bloggs, jo.bloggs @school.nz or [email protected], ph 09 399 2802, 021-123-4567, +64 21 555 1234 or 0800 123 456. Salary $75,000, 0.6 FTE, starting 2027.';
   assert.equal(redactContacts(t), 'Contact Jo Bloggs, [email: see Gazette] or [email: see Gazette], ph [phone: see Gazette], [phone: see Gazette], [phone: see Gazette] or [phone: see Gazette]. Salary $75,000, 0.6 FTE, starting 2027.');
+});
+
+test('eroDate: month-year and dd/mm/yyyy titles', () => {
+  assert.equal(eroDate('Bunny Childcare Warkworth - June 2026'), '2026-06');
+  assert.equal(eroDate('The Learning Ladder - 31/10/2019'), '2019-10');
+  assert.equal(eroDate('No date'), null);
+});
+
+test('parseEroPage: assurance standards, info table dropped, past reports, international students', () => {
+  const html = '<main id="main-content"><h2>Wa Ora Montessori Preschool - August 2024</h2><p>ERO’s Akanuku | Assurance Review reports</p>'
+    + '<table><tr><td><h4>Regulatory standards</h4></td><td><h4>ERO’s judgement</h4></td></tr>'
+    + '<tr><td>Curriculum</td><td>Meeting</td></tr><tr><td>Health and safety</td><td>Not meeting&nbsp;</td></tr></table>'
+    + '<table><tr><td>Service type</td><td>Education and care service</td></tr><tr><td>Number licensed for</td><td>120 children</td></tr></table>'
+    + '<h2>Past Reports</h2><div class="past-reports-list"><div class="past-report-item"><div class="past-report-title"><span>Provision for International Students Report May 2023</span></div>'
+    + '<a class="past-report-link" href="/institution/1/x/?reportId=abc&amp;versionId=def">View this report </a></div></div>'
+    + '<div class="right-container"></div></main>';
+  const p = parseEroPage(html, 'https://www.ero.govt.nz/institution/1/x');
+  assert.equal(p.kind, 'assurance');
+  assert.equal(p.date, '2024-08');
+  assert.deepEqual(p.rows, [['Curriculum', 'Meeting'], ['Health and safety', 'Not meeting']]);
+  assert.equal(p.past[0].url, 'https://www.ero.govt.nz/institution/1/x/?reportId=abc&versionId=def');
+  assert.equal(p.intl, true);
+});
+
+test('parseEroPage: governing organisation page with report PDF, framework PDFs ignored; empty page → null', () => {
+  const html = '<main><h2>Educare Early Learning Centres December 2025</h2><p>We call this a governing organisation.</p>'
+    + '<a href="/sites/default/files/x/Improvement%20Framework%20%28teacher-led%29.pdf">f</a><a href="/sites/default/files/2025-12/report_32.pdf">r</a></main>';
+  const p = parseEroPage(html, 'https://www.ero.govt.nz/institution/46992/educare-warkworth');
+  assert.equal(p.kind, 'group');
+  assert.equal(p.pdf, 'https://www.ero.govt.nz/sites/default/files/2025-12/report_32.pdf');
+  assert.equal(parseEroPage('<main><div class="right-container"></div></main>', 'https://www.ero.govt.nz/'), null);
+});
+
+test('parseAkarangiXml: highlighted (white / near-white) cell per domain row', () => {
+  const xml = '<fontspec id="0" size="17" family="C" color="#000000"/><fontspec id="11" size="17" family="C" color="#005e62"/>'
+    + '<fontspec id="3" size="33" family="C" color="#ffffff"/><fontspec id="12" size="17" family="C" color="#fcfaff"/>'
+    + '<text top="175" left="85" width="1" height="1" font="3">ERO Early Childhood Service Akarangi</text>'
+    + '<text top="485" left="93" width="1" height="1" font="11"><b>Domains: Ngā Akatoro</b></text>'
+    + '<text top="539" left="93" width="1" height="1" font="0">The learner and their learning </text>'
+    + '<text top="569" left="93" width="1" height="1" font="0">He Whāriki Motuhake</text>'
+    + '<text top="554" left="586" width="1" height="1" font="12"><b>Embedded </b></text>'
+    + '<text top="554" left="718" width="1" height="1" font="11">Excelling </text>'
+    + '<text top="607" left="93" width="1" height="1" font="0">Collaborative professional </text>'
+    + '<text top="628" left="93" width="1" height="1" font="0">learning and development </text>'
+    + '<text top="637" left="473" width="1" height="1" font="12"><b>Working </b></text>'
+    + '<text top="657" left="474" width="1" height="1" font="12"><b>towards</b></text>'
+    + '<text top="647" left="586" width="1" height="1" font="11">Embedded </text>'
+    + '<text top="900" left="93" width="1" height="1" font="0">Children’s health and safety </text>'
+    + '<text top="900" left="600" width="1" height="1" font="12"><b>Taking reasonable steps</b></text>';
+  assert.deepEqual(parseAkarangiXml(xml), [
+    ['The learner and their learning', 'Embedded'],
+    ['Professional learning and development', 'Working towards'],
+    ['Health and safety', 'Taking reasonable steps'],
+  ]);
 });

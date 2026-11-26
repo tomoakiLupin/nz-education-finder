@@ -6,6 +6,7 @@ import { JOB_SITES, REPO_URL, STALE_DAYS, sectorOfInstitution, type JobSector } 
 import { careersOf, websiteOf } from '../data';
 import { t, tx } from '../i18n';
 import { MiniMap } from './MapView';
+import { EroPanel } from './EroPanel';
 import { JobCard, closed } from './JobsPage';
 
 const INZ = 'https://www.immigration.govt.nz/work/requirements-for-work-visas/approved-employers/accredited-employer-list/';
@@ -204,6 +205,7 @@ export function DetailPage({ ds, r }: { ds: Dataset; r: Institution }) {
 
           <OpenJobs ds={ds} r={r} />
           <Aewv ds={ds} r={r} />
+          <EroPanel r={r} />
           <PastJobs ds={ds} r={r} />
           <JobSearch r={r} />
         </div>

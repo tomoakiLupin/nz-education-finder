@@ -520,3 +520,113 @@ export function extractVisa(text) {
 
 /** Stable hash of the live vacancy set (ref + last-modified), so the hourly probe can tell whether anything changed. */
 export const gazetteFingerprint = (entries) => sha256(Buffer.from(entries.map((e) => `${e.ref} ${e.modified ?? ''}`).sort().join('\n')));
+
+// ---------------------------------------------------------------------------------------------------------------
+// ERO (Education Review Office) institution pages: https://www.ero.govt.nz/institution/<MoE number>/<any slug>
+
+const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+const eroClean = (s) => s.replace(/[​-‍﻿]/g, '').replace(/\s+/g, ' ').trim();
+const textOf = (fragment) => eroClean(decodeEntities(fragment.replace(/<[^>]+>/g, ' ')));
+
+/** "Name - December 2023" / "Name - 31/10/2019" → "2023-12" / "2019-10". */
+export function eroDate(title) {
+  const m = /\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{4})\b/i.exec(title ?? '');
+  if (m) return `${m[2]}-${String(MONTHS.indexOf(m[1].toLowerCase()) + 1).padStart(2, '0')}`;
+  const d = /\b\d{1,2}\/(\d{1,2})\/(\d{4})\b/.exec(title ?? '');
+  return d ? `${d[2]}-${d[1].padStart(2, '0')}` : null;
+}
+
+// Rows of the "information about the service / school" tables that sit next to the judgements.
+const INFO_LABEL = /^(early childhood service name|profile (number|report)|location|service type|number (licensed|of)|percentage|roll|gender|ethnic|review team|date|school type|school roll|ministry|regional|ward|institution|k[oō]hanga reo identification|licen[cs]e|ngā tau|te t[uū]w[aā]hi|te tau|te t[uū]momo|te raihana|te tokomaha|te ōrau|te pahekotanga|ngā tamariki|ng[aā] r[aā]|most recent|service roll|ng[aā] hononga|te w[aā]|ng[aā] p[uū]rongo)/i;
+
+/** Two-column "label | judgement" tables (assurance standards, quality judgements, school report questions). */
+function judgementRows(html) {
+  const rows = [];
+  for (const [table] of html.matchAll(/<table[\s\S]*?<\/table>/gi)) {
+    for (const [, tr] of table.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
+      const cells = [...tr.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((m) => m[1]);
+      if (cells.length !== 2) continue;
+      const blocks = (c) => [...c.matchAll(/<(h\d|p)[^>]*>([\s\S]*?)<\/\1>/gi)].map((m) => textOf(m[2])).filter(Boolean);
+      const lb = blocks(cells[0]).filter((b) => !/^\(.*\)$/.test(b));
+      const vb = blocks(cells[1]);
+      if (lb.length > 1 && lb.length === vb.length) { lb.forEach((l, i) => rows.push([l, vb[i]])); continue; } // "Learning / Organisational Conditions"
+      const label = (lb[0] ?? textOf(cells[0])).replace(/\s*\(.*\)$/, '');
+      const value = vb.length ? vb.join(' ') : textOf(cells[1]);
+      if (!label || !value || label.length > 160 || /^(regulatory standards|ero.s judgement)$/i.test(label) || /^ero.s judgement$/i.test(value)) continue;
+      if (INFO_LABEL.test(label) || /^[\d\s,.%]+$/.test(value)) continue; // service facts table, not a judgement
+      rows.push([label, value.slice(0, 400)]);
+    }
+  }
+  return rows.slice(0, 12);
+}
+
+/** The latest report on an ERO institution page, plus links to older ones. Returns null when the page has no report. */
+export function parseEroPage(html, pageUrl) {
+  const start = html.indexOf('<main');
+  if (start < 0) return null;
+  const end = html.indexOf('class="right-container"', start);
+  const main = html.slice(start, end > 0 ? end : undefined);
+  const h2s = [...main.matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/gi)].map((m) => textOf(m[1]));
+  const title = h2s.find((h) => !/^(past|other) reports$/i.test(h)) ?? null;
+  const pastAt = main.search(/<h2[^>]*>\s*(Past|Other) Reports/i);
+  const current = pastAt > 0 ? main.slice(0, pastAt) : main;
+  const abs = (href) => new URL(decodeEntities(href), pageUrl).href;
+  const past = [...main.matchAll(/class="past-report-title">([\s\S]*?)<\/div>\s*<a[^>]*href="([^"]+)"/gi)]
+    .map((m) => ({ title: textOf(m[1]), date: eroDate(textOf(m[1])), url: abs(m[2]) }));
+  if (!title && !past.length) return null;
+  const pdf = [...current.matchAll(/href="([^"]+\.pdf)"/gi)].map((m) => abs(m[1]))
+    .find((u) => !/Improvement%20Framework|Guide%20to%20ERO|Evaluation%20Judgement%20Rubric/i.test(u)) ?? null;
+  const text = textOf(current);
+  const rows = judgementRows(current);
+  const kind = /we call this a governing organisation|part of a larger group of early childhood services/i.test(text) ? 'group'
+    : rows.some(([, v]) => /^(not )?meeting\b/i.test(v)) ? 'assurance'
+      : /Akarangi/i.test(text) ? 'quality'
+        : /Akanuku/i.test(text) ? 'assurance'
+        : /school report|evaluation report|Te Ara Huarau|board assurance|school evaluation/i.test(`${title} ${text}`) ? 'school' : 'other';
+  return {
+    title, date: eroDate(title) ?? past[0]?.date ?? null, kind, pdf, rows,
+    intl: [title, ...past.map((p) => p.title)].some((t) => /international students/i.test(t ?? '')),
+    past: past.slice(0, 8),
+  };
+}
+
+const DOMAINS = [
+  [/learner and their learning|He Wh[aā]riki Motuhake/i, 'The learner and their learning'],
+  [/collaborative professional learning|Whakangungu Ngaio/i, 'Professional learning and development'],
+  [/leadership/i, 'Leadership'],
+  [/stewardship|governance and management/i, 'Stewardship'],
+  [/health and safety/i, 'Health and safety'],
+];
+
+/**
+ * Akarangi | Quality Evaluation report PDF, page 1, as `pdftohtml -xml` output. The judgement table highlights the
+ * awarded level in each row: that cell's text is white (#ffffff). Returns [[domain, level], ...] or [] if not found.
+ */
+export function parseAkarangiXml(xml) {
+  // Highlighted text is white or near-white (#ffffff, #fcfaff, …).
+  const light = (hex) => [0, 2, 4].every((i) => parseInt(hex.slice(i, i + 2), 16) >= 0xe0);
+  const white = new Set([...xml.matchAll(/<fontspec id="(\d+)"[^>]*color="#([0-9a-f]{6})"/gi)].filter((m) => light(m[2])).map((m) => m[1]));
+  const items = [...xml.matchAll(/<text top="(\d+)" left="(\d+)"[^>]*font="(\d+)"[^>]*>([\s\S]*?)<\/text>/gi)]
+    .map((m) => ({ top: +m[1], left: +m[2], white: white.has(m[3]), s: textOf(m[4]) })).filter((i) => i.s);
+  const head = items.find((i) => /^Domains/i.test(i.s));
+  if (!head) return [];
+  const below = items.filter((i) => i.top > head.top + 5);
+  const labelX = head.left + 40;
+  const labels = below.filter((i) => i.left < labelX && !i.white && !/^For an explanation/i.test(i.s)).sort((a, b) => a.top - b.top);
+  const rows = []; // consecutive label lines < 32px apart belong to one row
+  for (const l of labels) {
+    const r = rows.at(-1);
+    if (r && l.top - r.bottom < 32) { r.bottom = l.top; r.text += ` ${l.s}`; } else rows.push({ top: l.top, bottom: l.top, text: l.s });
+  }
+  // A highlighted cell is vertically centred on its row, so it belongs to the last row starting (nearly) above it.
+  const rowOf = (i) => rows.findLast((r) => r.top - 22 <= i.top);
+  const out = [];
+  for (const r of rows) {
+    const name = DOMAINS.find(([re]) => re.test(r.text))?.[1];
+    if (!name) continue;
+    const level = eroClean(below.filter((i) => i.white && i.left >= labelX && rowOf(i) === r)
+      .sort((a, b) => a.top - b.top || a.left - b.left).map((i) => i.s).join(' '));
+    if (level) out.push([name, level]);
+  }
+  return out;
+}
