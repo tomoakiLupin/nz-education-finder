@@ -575,7 +575,7 @@ export function parseEroPage(html, pageUrl) {
     .map((m) => ({ title: textOf(m[1]), date: eroDate(textOf(m[1])), url: abs(m[2]) }));
   if (!title && !past.length) return null;
   const pdf = [...current.matchAll(/href="([^"]+\.pdf)"/gi)].map((m) => abs(m[1]))
-    .find((u) => !/Improvement%20Framework|Guide%20to%20ERO|Evaluation%20Judgement%20Rubric/i.test(u)) ?? null;
+    .find((u) => !/Improvement%20Framework|Guide%20to%20ERO|Judgement%20Rubric/i.test(u)) ?? null;
   const text = textOf(current);
   const rows = judgementRows(current);
   const kind = /we call this a governing organisation|part of a larger group of early childhood services/i.test(text) ? 'group'
@@ -611,12 +611,16 @@ export function parseAkarangiXml(xml) {
   const head = items.find((i) => /^Domains/i.test(i.s));
   if (!head) return [];
   const below = items.filter((i) => i.top > head.top + 5);
-  const labelX = head.left + 40;
+  // Label column ends where the "Below the threshold for quality" column header starts.
+  const labelX = (items.find((i) => /^Below the threshold/i.test(i.s) && Math.abs(i.top - head.top) < 10)?.left ?? head.left + 220) - 10;
   const labels = below.filter((i) => i.left < labelX && !i.white && !/^For an explanation/i.test(i.s)).sort((a, b) => a.top - b.top);
-  const rows = []; // consecutive label lines < 32px apart belong to one row
+  // A row starts at a line opening with a domain's English name (line spacing varies between reports); a far gap
+  // also starts one, so text below the table is never glued onto the last domain.
+  const START = /^(the learner|collaborative professional|leadership|stewardship|children.s health|health and safety)/i;
+  const rows = [];
   for (const l of labels) {
     const r = rows.at(-1);
-    if (r && l.top - r.bottom < 32) { r.bottom = l.top; r.text += ` ${l.s}`; } else rows.push({ top: l.top, bottom: l.top, text: l.s });
+    if (r && !START.test(l.s) && l.top - r.bottom < 40) { r.bottom = l.top; r.text += ` ${l.s}`; } else rows.push({ top: l.top, bottom: l.top, text: l.s });
   }
   // A highlighted cell is vertically centred on its row, so it belongs to the last row starting (nearly) above it.
   const rowOf = (i) => rows.findLast((r) => r.top - 22 <= i.top);
@@ -625,7 +629,8 @@ export function parseAkarangiXml(xml) {
     const name = DOMAINS.find(([re]) => re.test(r.text))?.[1];
     if (!name) continue;
     const level = eroClean(below.filter((i) => i.white && i.left >= labelX && rowOf(i) === r)
-      .sort((a, b) => a.top - b.top || a.left - b.left).map((i) => i.s).join(' '));
+      .sort((a, b) => a.top - b.top || a.left - b.left).map((i) => i.s).join(' '))
+      .replace(/^(.+?)(?: \1)+$/, '$1'); // some PDFs draw the highlighted text twice
     if (level) out.push([name, level]);
   }
   return out;

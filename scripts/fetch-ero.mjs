@@ -19,6 +19,7 @@ const CACHE = new URL('data/ero.json', ROOT);
 const UA = { 'user-agent': 'nz-education-finder (github actions; weekly, one page at a time)' };
 const PAUSE_MS = 1000;
 const MAX_AGE_DAYS = 30;
+const PDF_PARSER = 3; // bump when parseAkarangiXml changes, so cached PDF ratings are read again
 
 const arg = (name, dflt) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : dflt; };
 const LIMIT = Number(arg('limit', 1500));
@@ -86,8 +87,8 @@ try {
       if (page) {
         Object.assign(entry, page);
         if (page.kind === 'quality' && page.pdf && !page.rows.length) {
-          if (prev?.pdf === page.pdf && prev.ratings?.length) entry.ratings = prev.ratings; // same report: no need to read the PDF again
-          else if (pdftohtml) { await sleep(PAUSE_MS); entry.ratings = await pdfJudgements(page.pdf, tmp).catch(() => []); }
+          if (prev?.pdf === page.pdf && prev.ratings?.length && prev.pdfParser === PDF_PARSER) { entry.ratings = prev.ratings; entry.pdfParser = PDF_PARSER; } // same report
+          else if (pdftohtml) { await sleep(PAUSE_MS); entry.ratings = await pdfJudgements(page.pdf, tmp).catch(() => []); entry.pdfParser = PDF_PARSER; }
         }
         withReport++;
       }
